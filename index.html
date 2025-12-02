@@ -149,7 +149,7 @@
 
     .line-numbers {
       width: 42px;
-      flex: 0 0 42px;     /* fixed narrow gutter */
+      flex: 0 0 42px;    /* narrow fixed gutter */
       padding: 10px 4px 10px 8px;
       font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
         "Liberation Mono", "Courier New", monospace;
@@ -288,7 +288,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.9 · slim numbers + fixed main</div>
+      <div class="badge">v1.0 · slim numbers + main fixed</div>
     </div>
 
     <div class="main">
@@ -405,25 +405,6 @@
     });
     updateLineNumbers();
 
-    // ===== Helper: find matching } for a { =====
-    function hasMatchingClosingBrace(text, openIndex) {
-      if (openIndex < 0 || openIndex >= text.length || text[openIndex] !== "{") {
-        return false;
-      }
-      let depth = 0;
-      for (let i = openIndex; i < text.length; i++) {
-        const ch = text[i];
-        if (ch === "{") depth++;
-        else if (ch === "}") {
-          depth--;
-          if (depth === 0 && i > openIndex) {
-            return true;
-          }
-        }
-      }
-      return false;
-    }
-
     // ===== Extract main body + region =====
     function extractMainRegion(source) {
       const sig = "public static void main(main.execute(1))";
@@ -512,12 +493,12 @@
 
         if (trimmed === "") continue;
 
-        // Main signature is ALWAYS allowed (no errors, no ; needed), anywhere
-        if (/^public\s+static\s+void\s+main\s*\(\s*main\.execute\(1\)\s*\)\s*\{?\s*$/.test(trimmed)) {
+        // Any line that contains "main.execute(1)" is always allowed
+        if (lineText.includes("main.execute(1)")) {
           continue;
         }
 
-        // Lines inside main body are handled by compileEazy – skip them entirely
+        // Lines inside main body are handled by compileEazy – skip them
         const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
         if (intersectsMain) continue;
 
@@ -532,7 +513,7 @@
           continue;
         }
 
-        // Other method headers (functions) outside main
+        // Other method headers outside main
         if (/^(public\s+)?(static\s+)?(int|String|var|void)\s+[A-Za-z_]\w*\s*\([^)]*\)\s*\{?\s*$/.test(trimmed)) {
           continue;
         }
@@ -546,18 +527,17 @@
 
         const needsSemicolon = !isControl;
 
-        // Require ';' for executable-ish / declaration lines outside main
         if (needsSemicolon && !lineText.includes(";")) {
           errors.push(`Line ${lineNo}: Missing ';' at end of line`);
           continue;
         }
 
-        // Recognized declarations
+        // Recognised declarations
         if (/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*.+;?$/.test(trimmed)) {
           continue;
         }
 
-        // Recognized console.print(...) and console.print(...)+.dl()
+        // Recognised console.print(...)
         if (/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/.test(trimmed)) {
           continue;
         }
@@ -570,12 +550,11 @@
           continue;
         }
 
-        // if/else if/else/while outside main are allowed structurally
+        // if/else/while outside main – structure allowed
         if (isControl) {
           continue;
         }
 
-        // Anything else is unknown outside main
         errors.push(`Line ${lineNo}: Cannot compile statement outside main: ${trimmed}`);
       }
 
@@ -915,7 +894,7 @@
         return;
       }
 
-      // Enter: smart indent + smart { }
+      // Enter: smart indent + local { } pairing
       if (e.key === "Enter") {
         const el = editorEl;
         const start = el.selectionStart;
@@ -932,23 +911,17 @@
 
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          const openIndex = value.lastIndexOf("{", start - 1);
-          const alreadyHasMatch = hasMatchingClosingBrace(value, openIndex);
-
-          if (alreadyHasMatch) {
-            // Only indent between { and its existing }
+          const afterTrim = after.replace(/^[ \t]*/, "");
+          if (afterTrim.startsWith("}")) {
+            // { already has immediate } → just indent between
             const newText =
-              before +
-              "\n" +
-              currentIndent +
-              indentUnit +
-              after;
+              before + "\n" + currentIndent + indentUnit + after;
             el.value = newText;
             const cursorPos =
               before.length + 1 + currentIndent.length + indentUnit.length;
             el.selectionStart = el.selectionEnd = cursorPos;
           } else {
-            // Create closing brace
+            // create a new block with closing }
             const newText =
               before +
               "\n" +
