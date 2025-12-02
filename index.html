@@ -137,37 +137,13 @@
       height: 100%;
     }
 
-    /* Editor with line numbers */
-    .editor-wrapper {
-      display: flex;
+    textarea {
+      width: 100%;
+      flex: 1;
+      resize: none;
       border-radius: 10px;
-      overflow: hidden;
       background: #020617;
       border: 1px solid rgba(55, 65, 81, 0.98);
-      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
-    }
-
-    .line-numbers {
-      flex: 0 0 40px; /* narrow fixed gutter */
-      padding: 10px 4px 10px 8px;
-      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
-        "Liberation Mono", "Courier New", monospace;
-      font-size: 13px;
-      text-align: right;
-      color: #4b5563;
-      user-select: none;
-      background: #020617;
-      border-right: 1px solid rgba(31, 41, 55, 0.9);
-      white-space: pre;
-      overflow: hidden;
-    }
-
-    textarea {
-      flex: 1 1 auto;
-      resize: none;
-      border-radius: 0;
-      background: #020617;
-      border: none;
       color: #e5e7eb;
       font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
         "Liberation Mono", "Courier New", monospace;
@@ -176,6 +152,13 @@
       outline: none;
       line-height: 1.45;
       tab-size: 2;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
+    }
+    textarea:focus {
+      border-color: #22c55e;
+      box-shadow:
+        0 0 0 1px rgba(34, 197, 94, 0.7),
+        0 0 0 6px rgba(22, 163, 74, 0.25);
     }
 
     pre {
@@ -287,7 +270,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.8 · slim numbers + smart braces</div>
+      <div class="badge">v0.5 · brace-smart + global errors</div>
     </div>
 
     <div class="main">
@@ -304,14 +287,11 @@
           </div>
         </div>
         <div class="panel-body">
-          <div class="editor-wrapper">
-            <pre id="lineNumbers" class="line-numbers">1</pre>
-            <textarea id="code" spellcheck="false">public class Main {
+          <textarea id="code" spellcheck="false">public class Main {
     public static void main(main.execute(1)) {
         console.print("hello world!");
     }
 }</textarea>
-          </div>
 
           <div class="controls">
             <span id="status" class="status">
@@ -343,7 +323,6 @@
     const outputEl = document.getElementById("output");
     const statusEl = document.getElementById("status");
     const editorEl = document.getElementById("code");
-    const lineNumbersEl = document.getElementById("lineNumbers");
 
     const eazyConsole = {
       print(value = "") {
@@ -388,42 +367,7 @@
       return m ? parseInt(m[0], 10) : 0;
     }
 
-    // ===== Line numbers =====
-    function updateLineNumbers() {
-      const lines = editorEl.value.split(/\r?\n/).length;
-      let out = "";
-      for (let i = 1; i <= lines; i++) {
-        out += i + (i < lines ? "\n" : "");
-      }
-      lineNumbersEl.textContent = out || "1";
-    }
-
-    editorEl.addEventListener("input", updateLineNumbers);
-    editorEl.addEventListener("scroll", () => {
-      lineNumbersEl.scrollTop = editorEl.scrollTop;
-    });
-    updateLineNumbers();
-
-    // ===== Helper: find matching } for a { =====
-    function hasMatchingClosingBrace(text, openIndex) {
-      if (openIndex < 0 || openIndex >= text.length || text[openIndex] !== "{") {
-        return false;
-      }
-      let depth = 0;
-      for (let i = openIndex; i < text.length; i++) {
-        const ch = text[i];
-        if (ch === "{") depth++;
-        else if (ch === "}") {
-          depth--;
-          if (depth === 0 && i > openIndex) {
-            return true; // found its matching }
-          }
-        }
-      }
-      return false;
-    }
-
-    // ===== Extract main body + region =====
+    // Extract main body + region
     function extractMainRegion(source) {
       const sig = "public static void main(main.execute(1))";
       const sigIndex = source.indexOf(sig);
@@ -443,7 +387,7 @@
         else if (ch === "}") {
           depth--;
           if (depth === 0) {
-            const bodyEnd = i;
+            const bodyEnd = i; // index of closing }
             return {
               body: source.slice(bodyStart, bodyEnd),
               bodyStart,
@@ -455,7 +399,7 @@
       throw new Error("Could not find matching } for main.execute(1)");
     }
 
-    // ===== No executable code outside main (console.print/for/while/if) =====
+    // Ensure no executable code outside main (console.print/for/while/if)
     function validateOutsideMain(source, mainStart, mainEnd) {
       const errors = [];
       const patterns = [
@@ -495,7 +439,7 @@
       return errors;
     }
 
-    // ===== Global syntax validation outside main: unknown → error (no ; check) =====
+    // Global syntax validation (outside main): unknown → error
     function validateGlobalSyntax(source, mainStart, mainEnd) {
       const lines = source.split(/\r?\n/);
       const errors = [];
@@ -508,17 +452,12 @@
         offset = lineEnd + 1;
         const lineNo = i + 1;
 
+        // Skip lines that intersect main body (handled by the main compiler)
+        const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
+        if (intersectsMain) continue;
+
         const trimmed = lineText.trim();
         if (trimmed === "") continue;
-
-        const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
-        if (intersectsMain) {
-          // allow the main signature line to be ignored here
-          if (trimmed.startsWith("public static void main(main.execute(1))")) {
-            continue;
-          }
-          continue;
-        }
 
         // Comments
         if (trimmed.startsWith("//")) continue;
@@ -526,12 +465,12 @@
         // Single braces
         if (trimmed === "{" || trimmed === "}") continue;
 
-        // Class declarations
+        // Class declarations (public or not)
         if (/^(public\s+)?class\s+[A-Za-z_]\w*\s*\{?\s*$/.test(trimmed)) {
           continue;
         }
 
-        // Method headers (including main) – allowed outside main body
+        // Method headers (functions) – we allow them
         if (/^(public\s+)?(static\s+)?(int|String|var|void)\s+[A-Za-z_]\w*\s*\([^)]*\)\s*\{?\s*$/.test(trimmed)) {
           continue;
         }
@@ -543,12 +482,19 @@
           trimmed.startsWith("else ") ||
           trimmed.startsWith("while ");
 
-        // Recognized declarations
+        const needsSemicolon = !isControl;
+
+        if (needsSemicolon && !lineText.includes(";")) {
+          errors.push(`Line ${lineNo}: Missing ';' at end of line`);
+          continue;
+        }
+
+        // Recognize declarations
         if (/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*.+;?$/.test(trimmed)) {
           continue;
         }
 
-        // Recognized console.print(...) and console.print(...)+.dl()
+        // Recognize console.print(...) and console.print(...)+.dl()
         if (/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/.test(trimmed)) {
           continue;
         }
@@ -556,17 +502,17 @@
           continue;
         }
 
-        // for (int i:range++(1,5)){
+        // Recognize for (int i:range++(1,5)){
         if (/^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?/.test(trimmed)) {
           continue;
         }
 
-        // if/else if/else/while lines
+        // Recognize if/else if/else/while lines (we already handled semicolon rule)
         if (isControl) {
           continue;
         }
 
-        // Anything else is unknown outside main
+        // Anything else is unknown
         errors.push(`Line ${lineNo}: Cannot compile statement outside main: ${trimmed}`);
       }
 
@@ -582,7 +528,10 @@
       return e;
     }
 
-    // ===== Compile main body to JS (strict ; inside main) =====
+    // Compile eazyCode main body to JS
+    // - requires ';' for executable statements (except if/for/while/else, {, }, //)
+    // - supports multiple statements on one line separated by ';'
+    // - collects all compile errors with line numbers
     function compileEazy(code, baseLine) {
       const lines = code.split(/\r?\n/);
       const out = [];
@@ -596,7 +545,9 @@
         const line = rawSegment;
         const trimmed = line.trim();
 
-        if (trimmed === "") return;
+        if (trimmed === "") {
+          return;
+        }
 
         if (trimmed === "{" || trimmed === "}") {
           out.push(trimmed);
@@ -635,7 +586,7 @@
           return;
         }
 
-        // declarations
+        // declarations: int / String / var (+ static versions)
         m = trimmed.match(/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
         if (m) {
           const name = m[2];
@@ -646,8 +597,7 @@
 
         // for (int i:range++(1,5)){
         m = trimmed.match(
-          /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/
-        );
+          /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/);
         if (m) {
           const varName = m[1];
           const start = translateExpression(m[2]);
@@ -658,7 +608,7 @@
           return;
         }
 
-        // if / else if / while
+        // if / else if / while (condition)
         if (
           trimmed.startsWith("if ") ||
           trimmed.startsWith("else if ") ||
@@ -677,7 +627,7 @@
           return;
         }
 
-        // assignment
+        // assignment: x = expr;
         m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
         if (m && !trimmed.startsWith("for ")) {
           const name = m[1];
@@ -710,23 +660,25 @@
 
         const needsSemicolon = !isCommentLine && !isBraceOnly && !isControl;
 
-        // normal statements must contain at least one ';'
+        // If this is a "normal" statement line, we require at least one ';'
         if (needsSemicolon && !raw.includes(";")) {
           addError(`Line ${physicalLineNo}: Missing ';' at end of line`);
+          // Skip compiling this line, move on to collect more errors
           continue;
         }
 
+        // Lines with no ';' left (control, brace, full-line comment)
         if (!raw.includes(";")) {
           processStatement(raw, physicalLineNo);
           continue;
         }
 
-        // split on ';'
+        // There is at least one ';' – split into statements on this physical line
         let remaining = raw;
         while (true) {
           const idx = remaining.indexOf(";");
           if (idx === -1) break;
-          const segment = remaining.slice(0, idx + 1);
+          const segment = remaining.slice(0, idx + 1); // include ';'
           processStatement(segment, physicalLineNo);
           remaining = remaining.slice(idx + 1);
         }
@@ -740,8 +692,10 @@
         if (leftoverTrimmed.startsWith("//")) {
           processStatement(leftover, physicalLineNo);
         } else if (!needsSemicolon) {
+          // A control/brace line that also had semicolon-terminated pieces; treat leftover as another statement
           processStatement(leftover, physicalLineNo);
         } else {
+          // There was some extra code after the last ';' that doesn't start a comment
           addError(
             `Line ${physicalLineNo}: Missing ';' before "${leftoverTrimmed}"`
           );
@@ -751,7 +705,6 @@
       return { js: out.join("\n"), errors };
     }
 
-    // ===== Run pipeline =====
     function runEazyCode() {
       const fullSource = editorEl.value;
       outputEl.textContent = "";
@@ -767,19 +720,27 @@
       }
 
       if (!region) {
+        // No main region – still validate everything as "outside main"
         const syntaxErrors = validateGlobalSyntax(
           fullSource,
           fullSource.length + 1,
           fullSource.length + 1
         );
         allErrors.push(...syntaxErrors);
-        allErrors.forEach(msg => {
-          outputEl.textContent += "[Error] " + msg + "\n";
-        });
-        setStatus("Error", "error");
+
+        if (allErrors.length > 0) {
+          allErrors.forEach(msg => {
+            outputEl.textContent += "[Error] " + msg + "\n";
+          });
+          setStatus("Error", "error");
+        } else {
+          outputEl.textContent += "[Error] main.execute(1) method not found\n";
+          setStatus("Error", "error");
+        }
         return;
       }
 
+      // Outside-main executable validation (console.print / for / while / if)
       const outsideErrors = validateOutsideMain(
         fullSource,
         region.bodyStart,
@@ -787,6 +748,7 @@
       );
       allErrors.push(...outsideErrors);
 
+      // Global syntax validation outside main
       const syntaxErrors = validateGlobalSyntax(
         fullSource,
         region.bodyStart,
@@ -794,6 +756,7 @@
       );
       allErrors.push(...syntaxErrors);
 
+      // Figure out the line number of the first line inside main(...)
       const prefix = fullSource.slice(0, region.bodyStart);
       const baseLine = prefix.split(/\r?\n/).length;
 
@@ -822,7 +785,8 @@
       }
     }
 
-    // ===== Editor shortcuts (pairs, tab, backspace, smart { } on Enter) =====
+    // ========= Editor shortcuts =========
+
     function insertPair(el, openChar, closeChar, event) {
       event.preventDefault();
       const start = el.selectionStart;
@@ -840,7 +804,6 @@
         el.value = before + openChar + closeChar + after;
         el.selectionStart = el.selectionEnd = start + 1;
       }
-      updateLineNumbers();
     }
 
     function insertText(el, text, event) {
@@ -852,11 +815,10 @@
       const after = value.slice(end);
       el.value = before + text + after;
       el.selectionStart = el.selectionEnd = start + text.length;
-      updateLineNumbers();
     }
 
     editorEl.addEventListener("keydown", function (e) {
-      // auto-pairs
+      // auto-pairs for (), [], ""
       if (e.key === "(") {
         insertPair(editorEl, "(", ")", e);
         return;
@@ -876,6 +838,7 @@
         const pos = el.selectionStart;
         const value = el.value;
 
+        // if between pair (), [], ""
         if (pos > 0 && el.selectionStart === el.selectionEnd) {
           const before = value[pos - 1];
           const after = value[pos];
@@ -884,31 +847,32 @@
             e.preventDefault();
             el.value = value.slice(0, pos - 1) + value.slice(pos + 1);
             el.selectionStart = el.selectionEnd = pos - 1;
-            updateLineNumbers();
             return;
           }
         }
 
-        // delete 4-space tab at once
+        // delete 4-space "tab" at once
         if (el.selectionStart === el.selectionEnd && pos >= 4) {
           const chunk = value.slice(pos - 4, pos);
           if (chunk === "    ") {
             e.preventDefault();
             el.value = value.slice(0, pos - 4) + value.slice(pos);
             el.selectionStart = el.selectionEnd = pos - 4;
-            updateLineNumbers();
             return;
           }
         }
       }
 
-      // Tab → 4 spaces
+      // Tab inserts 4 spaces
       if (e.key === "Tab") {
         insertText(editorEl, "    ", e);
         return;
       }
 
-      // Enter: smart indent + smart { }
+      // Enter: keep indent
+      // If line ends with '{':
+      // - If there's already a '}' after cursor → do NOT create a new '}', just indent between
+      // - Else → create new indented line + closing '}' line
       if (e.key === "Enter") {
         const el = editorEl;
         const start = el.selectionStart;
@@ -925,12 +889,9 @@
 
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          // find the index of THIS '{'
-          const openIndex = value.lastIndexOf("{", start - 1);
-          const alreadyHasMatch = hasMatchingClosingBrace(value, openIndex);
-
-          if (alreadyHasMatch) {
-            // block already has a matching }, don't create a new one
+          const afterTrim = after.replace(/^[ \t]*/, "");
+          if (afterTrim.startsWith("}")) {
+            // Already has a closing brace – don't create another
             const newText =
               before +
               "\n" +
@@ -942,7 +903,7 @@
               before.length + 1 + currentIndent.length + indentUnit.length;
             el.selectionStart = el.selectionEnd = cursorPos;
           } else {
-            // no matching } yet, create one
+            // No closing brace yet – create one
             const newText =
               before +
               "\n" +
@@ -964,7 +925,6 @@
           const cursorPos = before.length + 1 + currentIndent.length;
           el.selectionStart = el.selectionEnd = cursorPos;
         }
-        updateLineNumbers();
       }
     });
   </script>
