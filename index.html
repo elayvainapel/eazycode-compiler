@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <title>eazyCode Online Compiler</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -54,16 +52,9 @@
       border-radius: 999px;
       display: inline-block;
     }
-
-    .dot-red {
-      background: #f97373;
-    }
-    .dot-yellow {
-      background: #facc15;
-    }
-    .dot-green {
-      background: #22c55e;
-    }
+    .dot-red { background: #f97373; }
+    .dot-yellow { background: #facc15; }
+    .dot-green { background: #22c55e; }
 
     .title-area {
       display: flex;
@@ -105,10 +96,7 @@
       flex-direction: column;
       border-right: 1px solid rgba(31, 41, 55, 0.9);
     }
-
-    .panel:last-child {
-      border-right: none;
-    }
+    .panel:last-child { border-right: none; }
 
     .panel-header {
       padding: 8px 16px;
@@ -130,8 +118,15 @@
 
     .panel-header span.hint {
       font-size: 11px;
-      margin-left: auto;
+      margin-left: 6px;
       color: #6b7280;
+    }
+
+    .panel-header .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .panel-body {
@@ -159,7 +154,6 @@
       tab-size: 2;
       box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
     }
-
     textarea:focus {
       border-color: #22c55e;
       box-shadow:
@@ -192,10 +186,9 @@
       gap: 8px;
     }
 
-    .left-controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
+    .hint-ghost {
+      font-size: 11px;
+      color: #6b7280;
     }
 
     button {
@@ -214,7 +207,6 @@
         0 10px 18px rgba(34, 197, 94, 0.35),
         0 0 0 1px rgba(22, 163, 74, 0.7);
     }
-
     button:hover {
       background: linear-gradient(135deg, #4ade80, #bbf7d0);
       transform: translateY(-0.5px);
@@ -222,7 +214,6 @@
         0 14px 24px rgba(34, 197, 94, 0.4),
         0 0 0 1px rgba(22, 163, 74, 0.9);
     }
-
     button:active {
       transform: translateY(1px);
       box-shadow:
@@ -247,14 +238,6 @@
       color: #9ca3af;
     }
 
-    .status.success {
-      color: #4ade80;
-    }
-
-    .status.error {
-      color: #f97373;
-    }
-
     .status-dot {
       display: inline-block;
       width: 7px;
@@ -263,33 +246,15 @@
       margin-right: 5px;
       background: #6b7280;
     }
-
-    .status.success .status-dot {
-      background: #22c55e;
-    }
-
-    .status.error .status-dot {
-      background: #f97373;
-    }
-
-    .hint-ghost {
-      font-size: 11px;
-      color: #6b7280;
-    }
+    .status.success { color: #4ade80; }
+    .status.error { color: #f97373; }
+    .status.success .status-dot { background: #22c55e; }
+    .status.error .status-dot { background: #f97373; }
 
     @media (max-width: 860px) {
-      .main {
-        grid-template-columns: minmax(0, 1fr);
-      }
-
-      .panel {
-        border-right: none;
-        border-bottom: 1px solid rgba(31, 41, 55, 0.9);
-      }
-
-      .panel:last-child {
-        border-bottom: none;
-      }
+      .main { grid-template-columns: minmax(0, 1fr); }
+      .panel { border-right: none; border-bottom: 1px solid rgba(31, 41, 55, 0.9); }
+      .panel:last-child { border-bottom: none; }
     }
   </style>
 </head>
@@ -303,9 +268,9 @@
       </div>
       <div class="title-area">
         <div class="title-main">eazyCode Online Compiler</div>
-        <div class="title-sub">Your custom language, running in the browser</div>
+        <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.1 · mini subset</div>
+      <div class="badge">v0.1 · class + main</div>
     </div>
 
     <div class="main">
@@ -313,38 +278,40 @@
       <div class="panel">
         <div class="panel-header">
           <span class="label">Editor</span>
-          <span class="hint">Write eazyCode here</span>
+          <span class="hint">Wrap your code in class Main &amp; main.execute(1)</span>
+          <div class="header-right">
+            <button type="button" onclick="runEazyCode()">
+              <span class="btn-icon">▶</span>
+              Run
+            </button>
+          </div>
         </div>
         <div class="panel-body">
-          <textarea id="code" spellcheck="false">
-// Example eazyCode
+          <textarea id="code" spellcheck="false">public class Main {
+    public static void main(main.execute(1)) {
+        // eazyCode here
 
-int a = 4;
-int b = first.Int("hfdsjkgheu7473qhlhrq784r");
-int c = sum.Int("fhriafhriafif74t87eatht32ththtp8");
+        int a = 4;
+        int b = first.Int("hfdsjkgheu7473qhlhrq784r");
+        int c = sum.Int("fhriafhriafif74t87eatht32ththtp8");
 
-console.print(a)+.dl();  // 4
-console.print(b)+.dl();  // 7473
-console.print(c)+.dl();  // 201
+        console.print(a)+.dl();  // 4
+        console.print(b)+.dl();  // 7473
+        console.print(c)+.dl();  // 201
 
-for (int i:range++(1,5)){
-    console.print("nice ");
-}
-console.print()+.dl();
-          </textarea>
+        for (int i:range++(1,5)){
+            console.print("nice ");
+        }
+        console.print()+.dl();
+    }
+}</textarea>
 
           <div class="controls">
-            <div class="left-controls">
-              <button type="button" onclick="runEazyCode()">
-                <span class="btn-icon">▶</span>
-                Run eazyCode
-              </button>
-              <span class="hint-ghost">Supports console.print, +.dl(), int / String / var, if, while, for range++</span>
-            </div>
-            <div id="status" class="status">
+            <span id="status" class="status">
               <span class="status-dot"></span>
               Ready
-            </div>
+            </span>
+            <span class="hint-ghost">Only the code inside main(main.execute(1)) is compiled</span>
           </div>
         </div>
       </div>
@@ -353,7 +320,7 @@ console.print()+.dl();
       <div class="panel">
         <div class="panel-header">
           <span class="label">Output</span>
-          <span class="hint">Result of your program</span>
+          <span class="hint">Result of your eazyCode program</span>
         </div>
         <div class="panel-body">
           <pre id="output"></pre>
@@ -366,8 +333,6 @@ console.print()+.dl();
   </div>
 
   <script>
-    // ========= eazyCode runtime (JS) =========
-
     const outputEl = document.getElementById("output");
     const statusEl = document.getElementById("status");
 
@@ -381,7 +346,6 @@ console.print()+.dl();
         return this;
       },
       ul() {
-        // you can customize this later
         outputEl.textContent += "\n";
         return this;
       }
@@ -402,23 +366,46 @@ console.print()+.dl();
       const m = String(s).match(/\d+/);
       return m ? parseInt(m[0], 10) : 0;
     }
-
     function sum_Int(s) {
       const matches = String(s).match(/\d+/g) || [];
       return matches.reduce((acc, x) => acc + parseInt(x, 10), 0);
     }
-
     function eachSum_Int(s) {
       const digits = String(s).match(/\d/g) || [];
       return digits.reduce((acc, d) => acc + parseInt(d, 10), 0);
     }
-
     function eachFirst_Int(s) {
       const m = String(s).match(/\d/);
       return m ? parseInt(m[0], 10) : 0;
     }
 
-    // ========= tiny eazyCode → JS compiler =========
+    // Extract only the body of main(main.execute(1))
+    function extractMainBody(source) {
+      const sig = "public static void main(main.execute(1))";
+      const sigIndex = source.indexOf(sig);
+      if (sigIndex === -1) {
+        throw new Error("main.execute(1) method not found");
+      }
+      const braceStart = source.indexOf("{", sigIndex);
+      if (braceStart === -1) {
+        throw new Error("Opening { for main.execute(1) not found");
+      }
+      let depth = 1;
+      const n = source.length;
+      let bodyStart = braceStart + 1;
+      for (let i = braceStart + 1; i < n; i++) {
+        const ch = source[i];
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          depth--;
+          if (depth === 0) {
+            const bodyEnd = i; // position of closing brace
+            return source.slice(bodyStart, bodyEnd);
+          }
+        }
+      }
+      throw new Error("Could not find matching } for main.execute(1)");
+    }
 
     function translateExpression(expr) {
       let e = expr.trim();
@@ -441,7 +428,6 @@ console.print()+.dl();
           out.push("");
           continue;
         }
-
         if (trimmed.startsWith("//")) {
           out.push("//" + trimmed.slice(2));
           continue;
@@ -478,7 +464,7 @@ console.print()+.dl();
           }
         }
 
-        // int / String / var declarations
+        // declarations: int / String / var
         {
           const m = trimmed.match(/^(int|String|var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
           if (m) {
@@ -505,7 +491,7 @@ console.print()+.dl();
           }
         }
 
-        // if / else if / else / while
+        // if / else if / while
         if (
           trimmed.startsWith("if ") ||
           trimmed.startsWith("else if ") ||
@@ -523,7 +509,7 @@ console.print()+.dl();
           continue;
         }
 
-        // assignment: x = expr;
+        // assignment
         {
           const m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
           if (m && !trimmed.startsWith("for ")) {
@@ -534,7 +520,7 @@ console.print()+.dl();
           }
         }
 
-        // fallback: pass line through with helper replacements
+        // fallback
         line = line.replace(/first\.Int/g, "first_Int");
         line = line.replace(/sum\.Int/g, "sum_Int");
         line = line.replace(/eachSum\.Int/g, "eachSum_Int");
@@ -546,12 +532,14 @@ console.print()+.dl();
     }
 
     function runEazyCode() {
-      const code = document.getElementById("code").value;
+      const fullSource = document.getElementById("code").value;
       outputEl.textContent = "";
-      setStatus("Compiling...", "normal");
+      setStatus("Extracting main...", "normal");
 
       try {
-        const js = compileEazy(code);
+        const body = extractMainBody(fullSource);
+        setStatus("Compiling...", "normal");
+        const js = compileEazy(body);
         setStatus("Running...", "normal");
         eval(js);
         setStatus("Done", "success");
