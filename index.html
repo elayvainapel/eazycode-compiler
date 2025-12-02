@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>eazyCode Online Compiler</title>
+</head>
+<body>
+  <h1>eazyCode Mini Playground</h1>
+  <p>Write eazyCode below and click "Run":</p>
+
+  <textarea id="code" rows="15" cols="80">
+// Example eazyCode
+
+int a = 4;
+int b = first.Int("hfdsjkgheu7473qhlhrq784r");
+int c = sum.Int("fhriafhriafif74t87eatht32ththtp8");
+
+console.print(a)+.dl();  // 4
+console.print(b)+.dl();  // 7473
+console.print(c)+.dl();  // 201
+
+for (int i:range++(1,5)){
+    console.print("nice ");
+}
+console.print()+.dl();
+  </textarea>
+  <br><br>
+  <button onclick="runEazyCode()">Run eazyCode</button>
+
+  <h2>Output:</h2>
+  <pre id="output" style="border:1px solid #ccc; padding:10px; min-height:100px;"></pre>
+
+  <script>
+    // -------- eazyCode runtime in JS --------
+
+    const outputEl = document.getElementById('output');
+
+    const eazyConsole = {
+      print(value = "") {
+        outputEl.textContent += String(value);
+        return this;
+      },
+      dl() {
+        outputEl.textContent += "\n";
+        return this;
+      }
+    };
+
+    function first_Int(s) {
+      const m = String(s).match(/\d+/);
+      return m ? parseInt(m[0], 10) : 0;
+    }
+
+    function sum_Int(s) {
+      const matches = String(s).match(/\d+/g) || [];
+      return matches.reduce((acc, x) => acc + parseInt(x, 10), 0);
+    }
+
+    function eachSum_Int(s) {
+      const digits = String(s).match(/\d/g) || [];
+      return digits.reduce((acc, d) => acc + parseInt(d, 10), 0);
+    }
+
+    function eachFirst_Int(s) {
+      const m = String(s).match(/\d/);
+      return m ? parseInt(m[0], 10) : 0;
+    }
+
+    // -------- tiny compiler --------
+    function translateExpression(expr) {
+      let e = expr.trim();
+      e = e.replace(/first\.Int/g, "first_Int");
+      e = e.replace(/sum\.Int/g, "sum_Int");
+      e = e.replace(/eachSum\.Int/g, "eachSum_Int");
+      e = e.replace(/eachFirst\.Int/g, "eachFirst_Int");
+      return e;
+    }
+
+    function compileEazy(code) {
+      const lines = code.split(/\r?\n/);
+      const out = [];
+
+      for (let raw of lines) {
+        let line = raw;
+        const trimmed = line.trim();
+
+        if (trimmed === "") {
+          out.push("");
+          continue;
+        }
+        if (trimmed.startsWith("//")) {
+          out.push("//" + trimmed.slice(2));
+          continue;
+        }
+
+        // console.print(...)+.dl();
+        {
+          const m = trimmed.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/);
+          if (m) {
+            const inner = m[1].trim();
+            if (inner) {
+              const jsExpr = translateExpression(inner);
+              out.push(`eazyConsole.print(${jsExpr});`);
+            } else {
+              out.push(`eazyConsole.print("");`);
+            }
+            out.push(`eazyConsole.dl();`);
+            continue;
+          }
+        }
+
+        // console.print(...);
+        {
+          const m = trimmed.match(/^console\.print\((.*)\)\s*;?$/);
+          if (m) {
+            const inner = m[1].trim();
+            if (inner) {
+              const jsExpr = translateExpression(inner);
+              out.push(`eazyConsole.print(${jsExpr});`);
+            } else {
+              out.push(`eazyConsole.print("");`);
+            }
+            continue;
+          }
+        }
+
+        // int / String / var declarations
+        {
+          const m = trimmed.match(/^(int|String|var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+          if (m) {
+            const name = m[2];
+            const expr = translateExpression(m[3]);
+            out.push(`let ${name} = ${expr};`);
+            continue;
+          }
+        }
+
+        // for (int i:range++(1,5)){
+        {
+          const m = trimmed.match(/^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/);
+          if (m) {
+            const varName = m[1];
+            const start = translateExpression(m[2]);
+            const end = translateExpression(m[3]);
+            out.push(`for (let ${varName} = ${start}; ${varName} <= ${end}; ${varName}++) {`);
+            continue;
+          }
+        }
+
+        // if / else if / else / while
+        if (
+          trimmed.startsWith("if ") ||
+          trimmed.startsWith("else if ") ||
+          trimmed.startsWith("while ")
+        ) {
+          const idxOpen = line.indexOf("(");
+          const idxClose = line.lastIndexOf(")");
+          if (idxOpen !== -1 && idxClose !== -1 && idxClose > idxOpen) {
+            const before = line.slice(0, idxOpen + 1);
+            const expr = line.slice(idxOpen + 1, idxClose);
+            const after = line.slice(idxClose);
+            line = before + translateExpression(expr) + after;
+          }
+          out.push(line);
+          continue;
+        }
+
+        // assignment: x = expr;
+        {
+          const m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+          if (m && !trimmed.startsWith("for ")) {
+            const name = m[1];
+            const expr = translateExpression(m[2]);
+            out.push(`${name} = ${expr};`);
+            continue;
+          }
+        }
+
+        // fallback
+        line = line.replace(/first\.Int/g, "first_Int");
+        line = line.replace(/sum\.Int/g, "sum_Int");
+        line = line.replace(/eachSum\.Int/g, "eachSum_Int");
+        line = line.replace(/eachFirst\.Int/g, "eachFirst_Int");
+        out.push(line);
+      }
+
+      return out.join("\n");
+    }
+
+    function runEazyCode() {
+      outputEl.textContent = "";
+      const code = document.getElementById('code').value;
+      try {
+        const js = compileEazy(code);
+        eval(js);
+      } catch (err) {
+        outputEl.textContent += "\n[Error] " + err.message;
+      }
+    }
+  </script>
+</body>
+</html>
