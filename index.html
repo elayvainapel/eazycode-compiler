@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -270,7 +270,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.4 · smarter braces + global errors</div>
+      <div class="badge">v0.5 · brace-smart + global errors</div>
     </div>
 
     <div class="main">
@@ -720,13 +720,23 @@
       }
 
       if (!region) {
-        // No main region – still try to validate global syntax so unknown stuff outside main also errors
-        const syntaxErrors = validateGlobalSyntax(fullSource, fullSource.length + 1, fullSource.length + 1);
+        // No main region – still validate everything as "outside main"
+        const syntaxErrors = validateGlobalSyntax(
+          fullSource,
+          fullSource.length + 1,
+          fullSource.length + 1
+        );
         allErrors.push(...syntaxErrors);
-        allErrors.forEach(msg => {
-          outputEl.textContent += "[Error] " + msg + "\n";
-        });
-        setStatus("Error", "error");
+
+        if (allErrors.length > 0) {
+          allErrors.forEach(msg => {
+            outputEl.textContent += "[Error] " + msg + "\n";
+          });
+          setStatus("Error", "error");
+        } else {
+          outputEl.textContent += "[Error] main.execute(1) method not found\n";
+          setStatus("Error", "error");
+        }
         return;
       }
 
@@ -860,9 +870,9 @@
       }
 
       // Enter: keep indent
-      // Special case:
-      // - if line ends with '{' AND there is NO '}' after cursor → create block with auto-closing }
-      // - if line ends with '{' AND there IS already a '}' after cursor → just indent once, no new }
+      // If line ends with '{':
+      // - If there's already a '}' after cursor → do NOT create a new '}', just indent between
+      // - Else → create new indented line + closing '}' line
       if (e.key === "Enter") {
         const el = editorEl;
         const start = el.selectionStart;
@@ -879,11 +889,9 @@
 
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          // Check if there's already a '}' after the cursor (ignoring spaces)
           const afterTrim = after.replace(/^[ \t]*/, "");
           if (afterTrim.startsWith("}")) {
-            // There is already a closing brace – do NOT create a new one
-            // Just insert a newline with one extra indent, before the existing '}'
+            // Already has a closing brace – don't create another
             const newText =
               before +
               "\n" +
@@ -895,7 +903,7 @@
               before.length + 1 + currentIndent.length + indentUnit.length;
             el.selectionStart = el.selectionEnd = cursorPos;
           } else {
-            // No '}' yet – auto-create inner line + closing line
+            // No closing brace yet – create one
             const newText =
               before +
               "\n" +
