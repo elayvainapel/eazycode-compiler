@@ -270,7 +270,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.3 · strict ; + multi errors</div>
+      <div class="badge">v0.4 · smarter braces + global errors</div>
     </div>
 
     <div class="main">
@@ -436,6 +436,86 @@
           }
         }
       }
+      return errors;
+    }
+
+    // Global syntax validation (outside main): unknown → error
+    function validateGlobalSyntax(source, mainStart, mainEnd) {
+      const lines = source.split(/\r?\n/);
+      const errors = [];
+      let offset = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const lineText = lines[i];
+        const lineStart = offset;
+        const lineEnd = offset + lineText.length;
+        offset = lineEnd + 1;
+        const lineNo = i + 1;
+
+        // Skip lines that intersect main body (handled by the main compiler)
+        const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
+        if (intersectsMain) continue;
+
+        const trimmed = lineText.trim();
+        if (trimmed === "") continue;
+
+        // Comments
+        if (trimmed.startsWith("//")) continue;
+
+        // Single braces
+        if (trimmed === "{" || trimmed === "}") continue;
+
+        // Class declarations (public or not)
+        if (/^(public\s+)?class\s+[A-Za-z_]\w*\s*\{?\s*$/.test(trimmed)) {
+          continue;
+        }
+
+        // Method headers (functions) – we allow them
+        if (/^(public\s+)?(static\s+)?(int|String|var|void)\s+[A-Za-z_]\w*\s*\([^)]*\)\s*\{?\s*$/.test(trimmed)) {
+          continue;
+        }
+
+        const isControl =
+          trimmed.startsWith("for ") ||
+          trimmed.startsWith("if ") ||
+          trimmed.startsWith("else if ") ||
+          trimmed.startsWith("else ") ||
+          trimmed.startsWith("while ");
+
+        const needsSemicolon = !isControl;
+
+        if (needsSemicolon && !lineText.includes(";")) {
+          errors.push(`Line ${lineNo}: Missing ';' at end of line`);
+          continue;
+        }
+
+        // Recognize declarations
+        if (/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*.+;?$/.test(trimmed)) {
+          continue;
+        }
+
+        // Recognize console.print(...) and console.print(...)+.dl()
+        if (/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/.test(trimmed)) {
+          continue;
+        }
+        if (/^console\.print\((.*)\)\s*;?$/.test(trimmed)) {
+          continue;
+        }
+
+        // Recognize for (int i:range++(1,5)){
+        if (/^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?/.test(trimmed)) {
+          continue;
+        }
+
+        // Recognize if/else if/else/while lines (we already handled semicolon rule)
+        if (isControl) {
+          continue;
+        }
+
+        // Anything else is unknown
+        errors.push(`Line ${lineNo}: Cannot compile statement outside main: ${trimmed}`);
+      }
+
       return errors;
     }
 
@@ -631,8 +711,8 @@
       setStatus("Extracting main...", "normal");
 
       const allErrors = [];
-
       let region = null;
+
       try {
         region = extractMainRegion(fullSource);
       } catch (err) {
@@ -640,7 +720,9 @@
       }
 
       if (!region) {
-        // No main region – just show the errors and stop
+        // No main region – still try to validate global syntax so unknown stuff outside main also errors
+        const syntaxErrors = validateGlobalSyntax(fullSource, fullSource.length + 1, fullSource.length + 1);
+        allErrors.push(...syntaxErrors);
         allErrors.forEach(msg => {
           outputEl.textContent += "[Error] " + msg + "\n";
         });
@@ -655,6 +737,14 @@
         region.bodyEnd
       );
       allErrors.push(...outsideErrors);
+
+      // Global syntax validation outside main
+      const syntaxErrors = validateGlobalSyntax(
+        fullSource,
+        region.bodyStart,
+        region.bodyEnd
+      );
+      allErrors.push(...syntaxErrors);
 
       // Figure out the line number of the first line inside main(...)
       const prefix = fullSource.slice(0, region.bodyStart);
@@ -769,7 +859,10 @@
         return;
       }
 
-      // Enter: keep indent, special-case for lines ending with {
+      // Enter: keep indent
+      // Special case:
+      // - if line ends with '{' AND there is NO '}' after cursor → create block with auto-closing }
+      // - if line ends with '{' AND there IS already a '}' after cursor → just indent once, no new }
       if (e.key === "Enter") {
         const el = editorEl;
         const start = el.selectionStart;
@@ -786,19 +879,37 @@
 
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          const newText =
-            before +
-            "\n" +
-            currentIndent +
-            indentUnit +
-            "\n" +
-            currentIndent +
-            "}" +
-            after;
-          el.value = newText;
-          const cursorPos =
-            before.length + 1 + currentIndent.length + indentUnit.length;
-          el.selectionStart = el.selectionEnd = cursorPos;
+          // Check if there's already a '}' after the cursor (ignoring spaces)
+          const afterTrim = after.replace(/^[ \t]*/, "");
+          if (afterTrim.startsWith("}")) {
+            // There is already a closing brace – do NOT create a new one
+            // Just insert a newline with one extra indent, before the existing '}'
+            const newText =
+              before +
+              "\n" +
+              currentIndent +
+              indentUnit +
+              after;
+            el.value = newText;
+            const cursorPos =
+              before.length + 1 + currentIndent.length + indentUnit.length;
+            el.selectionStart = el.selectionEnd = cursorPos;
+          } else {
+            // No '}' yet – auto-create inner line + closing line
+            const newText =
+              before +
+              "\n" +
+              currentIndent +
+              indentUnit +
+              "\n" +
+              currentIndent +
+              "}" +
+              after;
+            el.value = newText;
+            const cursorPos =
+              before.length + 1 + currentIndent.length + indentUnit.length;
+            el.selectionStart = el.selectionEnd = cursorPos;
+          }
         } else {
           e.preventDefault();
           const newText = before + "\n" + currentIndent + after;
