@@ -237,7 +237,6 @@
       font-size: 11px;
       color: #9ca3af;
     }
-
     .status-dot {
       display: inline-block;
       width: 7px;
@@ -251,15 +250,12 @@
     .status.success .status-dot { background: #22c55e; }
     .status.error .status-dot { background: #f97373; }
 
-    @media (max-width: 860px) {
-      .main { grid-template-columns: minmax(0, 1fr); }
-      .panel { border-right: none; border-bottom: 1px solid rgba(31, 41, 55, 0.9); }
-      .panel:last-child { border-bottom: none; }
-    }
-  </style>
+</style>
 </head>
 <body>
-  <div class="shell">
+<div class="shell">
+
+    <!-- HEADER -->
     <div class="header">
       <div class="traffic-dots">
         <span class="dot-red"></span>
@@ -270,424 +266,316 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.2 · smarter editor</div>
+      <div class="badge">v0.2 · strict mode</div>
     </div>
 
     <div class="main">
-      <!-- Left: Editor -->
+
+      <!-- Left Panel: Editor -->
       <div class="panel">
         <div class="panel-header">
           <span class="label">Editor</span>
-          <span class="hint">Class Main + main.execute(1) required</span>
+          <span class="hint">Strict syntax · requires semicolons</span>
           <div class="header-right">
-            <button type="button" onclick="runEazyCode()">
+            <button onclick="runEazyCode()">
               <span class="btn-icon">▶</span>
               Run
             </button>
           </div>
         </div>
+
         <div class="panel-body">
           <textarea id="code" spellcheck="false">public class Main {
     public static void main(main.execute(1)) {
-        console.print("hello world!");
+        int x = 5;
+        console.print(x);
     }
 }</textarea>
 
           <div class="controls">
-            <span id="status" class="status">
-              <span class="status-dot"></span>
-              Ready
-            </span>
-            <span class="hint-ghost">Only the code inside main(main.execute(1)) is executable</span>
+            <span id="status" class="status"><span class="status-dot"></span>Ready</span>
+            <span class="hint-ghost">Every statement must end with ; now</span>
           </div>
         </div>
       </div>
 
-      <!-- Right: Output -->
+      <!-- Right Panel: Output -->
       <div class="panel">
         <div class="panel-header">
           <span class="label">Output</span>
-          <span class="hint">Result of your eazyCode program</span>
+          <span class="hint">Result of your program</span>
         </div>
         <div class="panel-body">
           <pre id="output"></pre>
-          <div class="controls">
-            <span class="hint-ghost">console.print(...) and +.dl() appear here</span>
-          </div>
         </div>
       </div>
+
     </div>
-  </div>
+</div>
 
-  <script>
-    const outputEl = document.getElementById("output");
-    const statusEl = document.getElementById("status");
-    const editorEl = document.getElementById("code");
 
-    const eazyConsole = {
-      print(value = "") {
-        outputEl.textContent += String(value);
-        return this;
-      },
-      dl() {
-        outputEl.textContent += "\n";
-        return this;
-      },
-      ul() {
-        outputEl.textContent += "\n";
-        return this;
-      }
-    };
+<script>
 
-    function setStatus(text, type = "normal") {
-      statusEl.textContent = "";
-      const dot = document.createElement("span");
-      dot.className = "status-dot";
-      statusEl.className = "status";
-      if (type === "success") statusEl.classList.add("success");
-      if (type === "error") statusEl.classList.add("error");
-      statusEl.appendChild(dot);
-      statusEl.appendChild(document.createTextNode(" " + text));
-    }
+// ====================================================================================
+// UTILITIES
+// ====================================================================================
 
-    function first_Int(s) {
-      const m = String(s).match(/\d+/);
-      return m ? parseInt(m[0], 10) : 0;
-    }
-    function sum_Int(s) {
-      const matches = String(s).match(/\d+/g) || [];
-      return matches.reduce((acc, x) => acc + parseInt(x, 10), 0);
-    }
-    function eachSum_Int(s) {
-      const digits = String(s).match(/\d/g) || [];
-      return digits.reduce((acc, d) => acc + parseInt(d, 10), 0);
-    }
-    function eachFirst_Int(s) {
-      const m = String(s).match(/\d/);
-      return m ? parseInt(m[0], 10) : 0;
-    }
+const outputEl = document.getElementById("output");
+const statusEl = document.getElementById("status");
+const editorEl = document.getElementById("code");
 
-    // Extract main body + region
-    function extractMainRegion(source) {
-      const sig = "public static void main(main.execute(1))";
-      const sigIndex = source.indexOf(sig);
-      if (sigIndex === -1) {
-        throw new Error("main.execute(1) method not found");
-      }
-      const braceStart = source.indexOf("{", sigIndex);
-      if (braceStart === -1) {
-        throw new Error("Opening { for main.execute(1) not found");
-      }
-      let depth = 1;
-      const n = source.length;
-      let bodyStart = braceStart + 1;
-      for (let i = braceStart + 1; i < n; i++) {
-        const ch = source[i];
-        if (ch === "{") depth++;
-        else if (ch === "}") {
-          depth--;
-          if (depth === 0) {
-            const bodyEnd = i; // index of closing }
-            return {
-              body: source.slice(bodyStart, bodyEnd),
-              bodyStart,
-              bodyEnd
-            };
-          }
-        }
-      }
-      throw new Error("Could not find matching } for main.execute(1)");
-    }
+const eazyConsole = {
+  print(value = "") {
+    outputEl.textContent += String(value);
+    return this;
+  },
+  dl() {
+    outputEl.textContent += "\n";
+    return this;
+  }
+};
 
-    // Ensure no executable code outside main
-    function validateOutsideMain(source, mainStart, mainEnd) {
-      const patterns = [
-        { re: /console\.print\s*\(/g, msg: "console.print is only allowed inside main(main.execute(1))" },
-        { re: /\bfor\s*\(/g, msg: "for-loops are only allowed inside main(main.execute(1))" },
-        { re: /\bwhile\s*\(/g, msg: "while-loops are only allowed inside main(main.execute(1))" },
-        { re: /\bif\s*\(/g, msg: "if-statements are only allowed inside main(main.execute(1))" }
-      ];
+function setStatus(text, type = "normal") {
+  statusEl.textContent = "";
+  const dot = document.createElement("span");
+  dot.className = "status-dot";
 
-      for (const { re, msg } of patterns) {
-        let m;
-        while ((m = re.exec(source)) !== null) {
-          const idx = m.index;
-          if (idx < mainStart || idx >= mainEnd) {
-            throw new Error(msg);
-          }
-        }
+  statusEl.className = "status";
+  if (type === "success") statusEl.classList.add("success");
+  if (type === "error") statusEl.classList.add("error");
+
+  statusEl.appendChild(dot);
+  statusEl.appendChild(document.createTextNode(" " + text));
+}
+
+function translateExpression(expr) {
+  let e = expr.trim();
+  e = e.replace(/first\.Int/g, "first_Int");
+  e = e.replace(/sum\.Int/g, "sum_Int");
+  e = e.replace(/eachSum\.Int/g, "eachSum_Int");
+  e = e.replace(/eachFirst\.Int/g, "eachFirst_Int");
+  return e;
+}
+
+// ====================================================================================
+// EXTRACT MAIN BODY
+// ====================================================================================
+
+function extractMainBody(source) {
+  const sig = "public static void main(main.execute(1))";
+  const sigIndex = source.indexOf(sig);
+  if (sigIndex === -1) throw new Error("main.execute(1) method not found");
+
+  const braceStart = source.indexOf("{", sigIndex);
+  if (braceStart === -1) throw new Error("Opening { for main not found");
+
+  let depth = 1;
+  let bodyStart = braceStart + 1;
+  for (let i = braceStart + 1; i < source.length; i++) {
+    if (source[i] === "{") depth++;
+    else if (source[i] === "}") {
+      depth--;
+      if (depth === 0) {
+        return source.slice(bodyStart, i);
       }
     }
+  }
 
-    function translateExpression(expr) {
-      let e = expr.trim();
-      e = e.replace(/first\.Int/g, "first_Int");
-      e = e.replace(/sum\.Int/g, "sum_Int");
-      e = e.replace(/eachSum\.Int/g, "eachSum_Int");
-      e = e.replace(/eachFirst\.Int/g, "eachFirst_Int");
-      return e;
-    }
+  throw new Error("Could not find matching } for main");
+}
 
-    function compileEazy(code) {
-      const lines = code.split(/\r?\n/);
-      const out = [];
+// ====================================================================================
+// MULTI-ERROR COMPILER
+// ====================================================================================
 
-      for (let raw of lines) {
-        let line = raw;
-        const trimmed = line.trim();
+function compileEazy(rawCode) {
+  let errors = [];
+  let jsOutput = [];
+  let lineCounter = 1;
 
-        if (trimmed === "") {
-          out.push("");
-          continue;
-        }
+  // Split into semicolon-based segments (each segment is a separate statement)
+  const rawLines = rawCode.split(/\r?\n/);
 
-        if (trimmed === "{" || trimmed === "}") {
-          out.push(trimmed);
-          continue;
-        }
+  // Convert `a=5; console.print(a);` into separate virtual lines
+  let virtualLines = [];
 
-        if (trimmed.startsWith("//")) {
-          out.push("//" + trimmed.slice(2));
-          continue;
-        }
+  rawLines.forEach((fullLine, idx) => {
+    const parts = fullLine.split(";");
 
-        // console.print(...)+.dl();
-        {
-          const m = trimmed.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/);
-          if (m) {
-            const inner = m[1].trim();
-            if (inner) {
-              const jsExpr = translateExpression(inner);
-              out.push(`eazyConsole.print(${jsExpr});`);
-            } else {
-              out.push(`eazyConsole.print("");`);
-            }
-            out.push(`eazyConsole.dl();`);
-            continue;
-          }
-        }
+    for (let i = 0; i < parts.length; i++) {
+      const segment = parts[i].trim();
 
-        // console.print(...);
-        {
-          const m = trimmed.match(/^console\.print\((.*)\)\s*;?$/);
-          if (m) {
-            const inner = m[1].trim();
-            if (inner) {
-              const jsExpr = translateExpression(inner);
-              out.push(`eazyConsole.print(${jsExpr});`);
-            } else {
-              out.push(`eazyConsole.print("");`);
-            }
-            continue;
-          }
-        }
-
-        // declarations: int / String / var
-        {
-          const m = trimmed.match(/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
-          if (m) {
-            const name = m[2];
-            const expr = translateExpression(m[3]);
-            out.push(`let ${name} = ${expr};`);
-            continue;
-          }
-        }
-
-        // for (int i:range++(1,5)){
-        {
-          const m = trimmed.match(
-            /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/,
-          );
-          if (m) {
-            const varName = m[1];
-            const start = translateExpression(m[2]);
-            const end = translateExpression(m[3]);
-            out.push(
-              `for (let ${varName} = ${start}; ${varName} <= ${end}; ${varName}++) {`,
-            );
-            continue;
-          }
-        }
-
-        // if / else if / while
-        if (
-          trimmed.startsWith("if ") ||
-          trimmed.startsWith("else if ") ||
-          trimmed.startsWith("while ")
-        ) {
-          const idxOpen = line.indexOf("(");
-          const idxClose = line.lastIndexOf(")");
-          if (idxOpen !== -1 && idxClose !== -1 && idxClose > idxOpen) {
-            const before = line.slice(0, idxOpen + 1);
-            const expr = line.slice(idxOpen + 1, idxClose);
-            const after = line.slice(idxClose);
-            line = before + translateExpression(expr) + after;
-          }
-          out.push(line);
-          continue;
-        }
-
-        // assignment: x = expr;
-        {
-          const m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
-          if (m && !trimmed.startsWith("for ")) {
-            const name = m[1];
-            const expr = translateExpression(m[2]);
-            out.push(`${name} = ${expr};`);
-            continue;
-          }
-        }
-
-        // unknown line -> compile error
-        throw new Error("Cannot compile line: " + trimmed);
+      if (segment === "" && i < parts.length - 1) {
+        virtualLines.push({ text: ";", lineNumber: idx + 1 });
+        continue;
       }
 
-      return out.join("\n");
-    }
-
-    function runEazyCode() {
-      const fullSource = editorEl.value;
-      outputEl.textContent = "";
-      setStatus("Extracting main...", "normal");
-
-      try {
-        const region = extractMainRegion(fullSource);
-        validateOutsideMain(fullSource, region.bodyStart, region.bodyEnd);
-
-        setStatus("Compiling...", "normal");
-        const js = compileEazy(region.body);
-        setStatus("Running...", "normal");
-        eval(js);
-        setStatus("Done", "success");
-      } catch (err) {
-        outputEl.textContent += "[Error] " + err.message + "\n";
-        setStatus("Error", "error");
+      if (segment !== "") {
+        virtualLines.push({
+          text: segment + (i < parts.length - 1 ? ";" : ""),
+          lineNumber: idx + 1
+        });
       }
     }
+  });
 
-    // ========= Editor shortcuts =========
+  // ==========================================
+  // PARSE EACH VIRTUAL LINE
+  // ==========================================
 
-    function insertPair(el, openChar, closeChar, event) {
-      event.preventDefault();
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const value = el.value;
-      const selected = value.slice(start, end);
-      const before = value.slice(0, start);
-      const after = value.slice(end);
+  virtualLines.forEach(({ text, lineNumber }) => {
+    let line = text.trim();
 
-      if (selected.length > 0) {
-        el.value = before + openChar + selected + closeChar + after;
-        el.selectionStart = start + 1;
-        el.selectionEnd = start + 1 + selected.length;
-      } else {
-        el.value = before + openChar + closeChar + after;
-        el.selectionStart = el.selectionEnd = start + 1;
-      }
+    if (line === "") {
+      jsOutput.push("");
+      return;
     }
 
-    function insertText(el, text, event) {
-      if (event) event.preventDefault();
-      const start = el.selectionStart;
-      const end = el.selectionEnd;
-      const value = el.value;
-      const before = value.slice(0, start);
-      const after = value.slice(end);
-      el.value = before + text + after;
-      el.selectionStart = el.selectionEnd = start + text.length;
+    // --------------------------
+    // Semicolon enforcement
+    // --------------------------
+    const needsSemicolon =
+      !line.endsWith("{") &&
+      !line.endsWith("}") &&
+      !line.startsWith("if ") &&
+      !line.startsWith("else") &&
+      !line.startsWith("while ") &&
+      !line.startsWith("for ");
+
+    if (needsSemicolon && !line.endsWith(";")) {
+      errors.push(`[Error] Line ${lineNumber}: Missing semicolon at end of line`);
+      return;
     }
 
-    editorEl.addEventListener("keydown", function (e) {
-      // auto-pairs for (), [], ""
-      if (e.key === "(") {
-        insertPair(editorEl, "(", ")", e);
+    const clean = line.endsWith(";")
+      ? line.slice(0, -1).trim()
+      : line;
+
+    // --------------------------
+    // Comments
+    // --------------------------
+    if (clean.startsWith("//")) {
+      jsOutput.push("//" + clean.slice(2));
+      return;
+    }
+
+    // --------------------------
+    // console.print + .dl
+    // --------------------------
+    let m = clean.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)$/);
+    if (m) {
+      const inner = m[1].trim();
+      const jsExpr = inner ? translateExpression(inner) : `""`;
+      jsOutput.push(`eazyConsole.print(${jsExpr});`);
+      jsOutput.push(`eazyConsole.dl();`);
+      return;
+    }
+
+    // --------------------------
+    // console.print
+    // --------------------------
+    m = clean.match(/^console\.print\((.*)\)$/);
+    if (m) {
+      const inner = m[1].trim();
+      const jsExpr = inner ? translateExpression(inner) : `""`;
+      jsOutput.push(`eazyConsole.print(${jsExpr});`);
+      return;
+    }
+
+    // --------------------------
+    // declarations: int / String / var
+    // --------------------------
+    m = clean.match(/^(int|String|var)\s+([A-Za-z_]\w*)\s*=\s*(.+)$/);
+    if (m) {
+      const name = m[2];
+      const expr = translateExpression(m[3]);
+      jsOutput.push(`let ${name} = ${expr};`);
+      return;
+    }
+
+    // --------------------------
+    // for-range
+    // --------------------------
+    m = clean.match(
+      /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)$/
+    );
+    if (m) {
+      const varName = m[1];
+      jsOutput.push(
+        `for (let ${varName} = ${translateExpression(
+          m[2]
+        )}; ${varName} <= ${translateExpression(m[3])}; ${varName}++) {`
+      );
+      return;
+    }
+
+    // --------------------------
+    // if / while
+    // --------------------------
+    if (clean.startsWith("if ") || clean.startsWith("while ")) {
+      const idxOpen = clean.indexOf("(");
+      const idxClose = clean.lastIndexOf(")");
+      if (idxOpen === -1 || idxClose === -1 || idxClose < idxOpen) {
+        errors.push(`[Error] Line ${lineNumber}: Malformed if/while syntax`);
         return;
       }
-      if (e.key === "[") {
-        insertPair(editorEl, "[", "]", e);
-        return;
-      }
-      if (e.key === '"') {
-        insertPair(editorEl, '"', '"', e);
-        return;
-      }
+      const before = clean.slice(0, idxOpen + 1);
+      const expr = clean.slice(idxOpen + 1, idxClose);
+      const after = clean.slice(idxClose);
+      jsOutput.push(before + translateExpression(expr) + after);
+      return;
+    }
 
-      // smart Backspace
-      if (e.key === "Backspace") {
-        const el = editorEl;
-        const pos = el.selectionStart;
-        const value = el.value;
+    // --------------------------
+    // assignment x = expr
+    // --------------------------
+    m = clean.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/);
+    if (m) {
+      jsOutput.push(`${m[1]} = ${translateExpression(m[2])};`);
+      return;
+    }
 
-        // if between pair (), [], ""
-        if (pos > 0 && el.selectionStart === el.selectionEnd) {
-          const before = value[pos - 1];
-          const after = value[pos];
-          const pairs = { "(": ")", "[": "]", '"': '"' };
-          if (pairs[before] && pairs[before] === after) {
-            e.preventDefault();
-            el.value = value.slice(0, pos - 1) + value.slice(pos + 1);
-            el.selectionStart = el.selectionEnd = pos - 1;
-            return;
-          }
-        }
+    // --------------------------
+    // UNKNOWN LINE: error
+    // --------------------------
+    errors.push(`[Error] Line ${lineNumber}: Cannot compile line: '${clean}'`);
+  });
 
-        // delete 4-space "tab" at once
-        if (el.selectionStart === el.selectionEnd && pos >= 4) {
-          const chunk = value.slice(pos - 4, pos);
-          if (chunk === "    ") {
-            e.preventDefault();
-            el.value = value.slice(0, pos - 4) + value.slice(pos);
-            el.selectionStart = el.selectionEnd = pos - 4;
-            return;
-          }
-        }
-      }
+  return { jsOutput, errors };
+}
 
-      // Tab inserts 4 spaces
-      if (e.key === "Tab") {
-        insertText(editorEl, "    ", e);
-        return;
-      }
+// ====================================================================================
+// RUN COMPILER
+// ====================================================================================
 
-      // Enter: keep indent, special-case for lines ending with {
-      if (e.key === "Enter") {
-        const el = editorEl;
-        const start = el.selectionStart;
-        const value = el.value;
-        const before = value.slice(0, start);
-        const after = value.slice(start);
-        const lastNewline = before.lastIndexOf("\n");
-        const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
-        const currentLine = before.slice(lineStart);
-        const indentMatch = currentLine.match(/^[\t ]*/);
-        const currentIndent = indentMatch ? indentMatch[0] : "";
-        const trimmedLine = currentLine.trimEnd();
-        const indentUnit = "    ";
+function runEazyCode() {
+  const fullSource = editorEl.value;
+  outputEl.textContent = "";
+  setStatus("Extracting...", "normal");
 
-        if (trimmedLine.endsWith("{")) {
-          e.preventDefault();
-          const newText =
-            before +
-            "\n" +
-            currentIndent +
-            indentUnit +
-            "\n" +
-            currentIndent +
-            "}" +
-            after;
-          el.value = newText;
-          const cursorPos =
-            before.length + 1 + currentIndent.length + indentUnit.length;
-          el.selectionStart = el.selectionEnd = cursorPos;
-        } else {
-          e.preventDefault();
-          const newText = before + "\n" + currentIndent + after;
-          el.value = newText;
-          const cursorPos = before.length + 1 + currentIndent.length;
-          el.selectionStart = el.selectionEnd = cursorPos;
-        }
-      }
-    });
-  </script>
+  try {
+    const body = extractMainBody(fullSource);
+    setStatus("Compiling...", "normal");
+
+    const { jsOutput, errors } = compileEazy(body);
+
+    if (errors.length > 0) {
+      setStatus("Error", "error");
+      outputEl.textContent = errors.join("\n") + "\n";
+      return;
+    }
+
+    setStatus("Running...", "normal");
+    eval(jsOutput.join("\n"));
+    setStatus("Done", "success");
+
+  } catch (err) {
+    outputEl.textContent = "[Error] " + err.message;
+    setStatus("Error", "error");
+  }
+}
+
+</script>
+
 </body>
 </html>
