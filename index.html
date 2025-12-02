@@ -148,7 +148,8 @@
     }
 
     .line-numbers {
-      padding: 10px 6px 10px 10px;
+      flex: 0 0 40px; /* narrow fixed gutter */
+      padding: 10px 4px 10px 8px;
       font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
         "Liberation Mono", "Courier New", monospace;
       font-size: 13px;
@@ -158,11 +159,11 @@
       background: #020617;
       border-right: 1px solid rgba(31, 41, 55, 0.9);
       white-space: pre;
+      overflow: hidden;
     }
 
     textarea {
-      width: 100%;
-      flex: 1;
+      flex: 1 1 auto;
       resize: none;
       border-radius: 0;
       background: #020617;
@@ -286,7 +287,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.7 · line numbers + fixed main + smart { }</div>
+      <div class="badge">v0.8 · slim numbers + smart braces</div>
     </div>
 
     <div class="main">
@@ -403,6 +404,25 @@
     });
     updateLineNumbers();
 
+    // ===== Helper: find matching } for a { =====
+    function hasMatchingClosingBrace(text, openIndex) {
+      if (openIndex < 0 || openIndex >= text.length || text[openIndex] !== "{") {
+        return false;
+      }
+      let depth = 0;
+      for (let i = openIndex; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          depth--;
+          if (depth === 0 && i > openIndex) {
+            return true; // found its matching }
+          }
+        }
+      }
+      return false;
+    }
+
     // ===== Extract main body + region =====
     function extractMainRegion(source) {
       const sig = "public static void main(main.execute(1))";
@@ -475,7 +495,7 @@
       return errors;
     }
 
-    // ===== Global syntax validation outside main: unknown → error (NO ; check here) =====
+    // ===== Global syntax validation outside main: unknown → error (no ; check) =====
     function validateGlobalSyntax(source, mainStart, mainEnd) {
       const lines = source.split(/\r?\n/);
       const errors = [];
@@ -491,10 +511,9 @@
         const trimmed = lineText.trim();
         if (trimmed === "") continue;
 
-        // Lines inside main body are handled by the main compiler
         const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
         if (intersectsMain) {
-          // But we still allow the main signature line itself to be skipped here
+          // allow the main signature line to be ignored here
           if (trimmed.startsWith("public static void main(main.execute(1))")) {
             continue;
           }
@@ -542,7 +561,7 @@
           continue;
         }
 
-        // if/else if/else/while lines themselves are allowed patterns
+        // if/else if/else/while lines
         if (isControl) {
           continue;
         }
@@ -906,9 +925,12 @@
 
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          const afterTrim = after.replace(/^[ \t]*/, "");
-          if (afterTrim.startsWith("}")) {
-            // already has a } → just indent between { and }
+          // find the index of THIS '{'
+          const openIndex = value.lastIndexOf("{", start - 1);
+          const alreadyHasMatch = hasMatchingClosingBrace(value, openIndex);
+
+          if (alreadyHasMatch) {
+            // block already has a matching }, don't create a new one
             const newText =
               before +
               "\n" +
@@ -920,7 +942,7 @@
               before.length + 1 + currentIndent.length + indentUnit.length;
             el.selectionStart = el.selectionEnd = cursorPos;
           } else {
-            // no } yet → create one
+            // no matching } yet, create one
             const newText =
               before +
               "\n" +
