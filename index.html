@@ -1,363 +1,693 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<title>eazyCode Compiler</title>
-<style>
-    *{box-sizing:border-box;}
-    body{
-        margin:0;
-        min-height:100vh;
-        background:#0f172a;
-        color:#e5e7eb;
-        font-family:system-ui;
-        display:flex;
-        justify-content:center;
-        padding:20px;
+  <meta charset="UTF-8" />
+  <title>eazyCode Online Compiler</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top, #1d283a 0, #020617 55%, #000 100%);
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      padding: 32px 12px;
     }
-    .shell{
-        width:100%;
-        max-width:1100px;
-        background:#111827;
-        border-radius:14px;
-        border:1px solid #334155;
-        padding:20px;
+
+    .shell {
+      width: 100%;
+      max-width: 1100px;
+      background: rgba(15, 23, 42, 0.96);
+      border-radius: 18px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      box-shadow:
+        0 22px 45px rgba(15, 23, 42, 0.8),
+        0 0 0 1px rgba(15, 23, 42, 0.8);
+      overflow: hidden;
+      backdrop-filter: blur(22px);
     }
-    textarea{
-        width:100%;
-        height:300px;
-        background:#0f172a;
-        border:1px solid #334155;
-        border-radius:10px;
-        color:#e5e7eb;
-        font-family:ui-monospace;
-        font-size:14px;
-        padding:10px;
-        outline:none;
-        white-space:pre;
+
+    .header {
+      padding: 14px 20px 10px;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: linear-gradient(to right, #020617, #020617, #111827);
     }
-    textarea:focus{
-        border-color:#22c55e;
-        box-shadow:0 0 0 3px rgba(34,197,94,.3);
+
+    .traffic-dots {
+      display: flex;
+      gap: 6px;
+      margin-right: 4px;
     }
-    pre{
-        margin-top:12px;
-        white-space:pre-wrap;
-        background:#0f172a;
-        border:1px solid #334155;
-        border-radius:10px;
-        padding:10px;
-        min-height:150px;
+
+    .traffic-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      display: inline-block;
     }
-    button{
-        margin-top:14px;
-        padding:8px 20px;
-        background:#22c55e;
-        border:none;
-        border-radius:20px;
-        font-size:15px;
-        font-weight:600;
-        cursor:pointer;
-        color:#052e16;
+    .dot-red { background: #f97373; }
+    .dot-yellow { background: #facc15; }
+    .dot-green { background: #22c55e; }
+
+    .title-area {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
     }
-    button:hover{
-        background:#4ade80;
+
+    .title-main {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
     }
-    .error{
-        color:#f87171;
-        font-weight:bold;
+
+    .title-sub {
+      font-size: 12px;
+      color: #9ca3af;
     }
-</style>
+
+    .badge {
+      margin-left: auto;
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      color: #c4d4ff;
+      background: radial-gradient(circle at top left, #1d4ed8, #020617);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      min-height: 420px;
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid rgba(31, 41, 55, 0.9);
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      padding: 8px 16px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      border-bottom: 1px solid rgba(31, 41, 55, 0.9);
+      background: radial-gradient(circle at top left, #0f172a, #020617);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #9ca3af;
+    }
+
+    .panel-header span.label {
+      font-weight: 600;
+      color: #e5e7eb;
+    }
+
+    .panel-header span.hint {
+      font-size: 11px;
+      margin-left: 6px;
+      color: #6b7280;
+    }
+
+    .panel-header .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-body {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+    }
+
+    textarea {
+      width: 100%;
+      flex: 1;
+      resize: none;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px solid rgba(55, 65, 81, 0.98);
+      color: #e5e7eb;
+      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      padding: 10px 11px;
+      outline: none;
+      line-height: 1.45;
+      tab-size: 2;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
+    }
+    textarea:focus {
+      border-color: #22c55e;
+      box-shadow:
+        0 0 0 1px rgba(34, 197, 94, 0.7),
+        0 0 0 6px rgba(22, 163, 74, 0.25);
+    }
+
+    pre {
+      margin: 0;
+      flex: 1;
+      border-radius: 10px;
+      background: #020617;
+      border: 1px solid rgba(55, 65, 81, 0.98);
+      color: #e5e7eb;
+      font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
+        "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      padding: 10px 11px;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.8);
+    }
+
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 6px;
+      gap: 8px;
+    }
+
+    .hint-ghost {
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #22c55e, #4ade80);
+      color: #052e16;
+      box-shadow:
+        0 10px 18px rgba(34, 197, 94, 0.35),
+        0 0 0 1px rgba(22, 163, 74, 0.7);
+    }
+    button:hover {
+      background: linear-gradient(135deg, #4ade80, #bbf7d0);
+      transform: translateY(-0.5px);
+      box-shadow:
+        0 14px 24px rgba(34, 197, 94, 0.4),
+        0 0 0 1px rgba(22, 163, 74, 0.9);
+    }
+    button:active {
+      transform: translateY(1px);
+      box-shadow:
+        0 6px 10px rgba(34, 197, 94, 0.3),
+        0 0 0 1px rgba(22, 163, 74, 0.7);
+    }
+
+    .btn-icon {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid #052e16;
+      background: #bbf7d0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+    }
+
+    .status {
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      margin-right: 5px;
+      background: #6b7280;
+    }
+    .status.success { color: #4ade80; }
+    .status.error { color: #f97373; }
+    .status.success .status-dot { background: #22c55e; }
+    .status.error .status-dot { background: #f97373; }
+
+    @media (max-width: 860px) {
+      .main { grid-template-columns: minmax(0, 1fr); }
+      .panel { border-right: none; border-bottom: 1px solid rgba(31, 41, 55, 0.9); }
+      .panel:last-child { border-bottom: none; }
+    }
+  </style>
 </head>
 <body>
+  <div class="shell">
+    <div class="header">
+      <div class="traffic-dots">
+        <span class="dot-red"></span>
+        <span class="dot-yellow"></span>
+        <span class="dot-green"></span>
+      </div>
+      <div class="title-area">
+        <div class="title-main">eazyCode Online Compiler</div>
+        <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
+      </div>
+      <div class="badge">v0.2 · smarter editor</div>
+    </div>
 
-<div class="shell">
-    <h2>eazyCode Online Compiler</h2>
-
-    <textarea id="code" spellcheck="false">public class Main {
+    <div class="main">
+      <!-- Left: Editor -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="label">Editor</span>
+          <span class="hint">Class Main + main.execute(1) required</span>
+          <div class="header-right">
+            <button type="button" onclick="runEazyCode()">
+              <span class="btn-icon">▶</span>
+              Run
+            </button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <textarea id="code" spellcheck="false">public class Main {
     public static void main(main.execute(1)) {
         console.print("hello world!");
     }
 }</textarea>
 
-    <button onclick="runEazy()">Run</button>
-    <pre id="output"></pre>
-</div>
+          <div class="controls">
+            <span id="status" class="status">
+              <span class="status-dot"></span>
+              Ready
+            </span>
+            <span class="hint-ghost">Only the code inside main(main.execute(1)) is executable</span>
+          </div>
+        </div>
+      </div>
 
-<script>
-const editor = document.getElementById("code");
-const output = document.getElementById("output");
+      <!-- Right: Output -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="label">Output</span>
+          <span class="hint">Result of your eazyCode program</span>
+        </div>
+        <div class="panel-body">
+          <pre id="output"></pre>
+          <div class="controls">
+            <span class="hint-ghost">console.print(...) and +.dl() appear here</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-/* ====== SMART EDITOR FEATURES ====== */
+  <script>
+    const outputEl = document.getElementById("output");
+    const statusEl = document.getElementById("status");
+    const editorEl = document.getElementById("code");
 
-function insertPair(ed, open, close, e){
-    e.preventDefault();
-    let s = ed.selectionStart;
-    let epos = ed.selectionEnd;
-    let v = ed.value;
-    let sel = v.slice(s, epos);
+    const eazyConsole = {
+      print(value = "") {
+        outputEl.textContent += String(value);
+        return this;
+      },
+      dl() {
+        outputEl.textContent += "\n";
+        return this;
+      },
+      ul() {
+        outputEl.textContent += "\n";
+        return this;
+      }
+    };
 
-    if(sel.length > 0){
-        ed.value = v.slice(0,s)+open+sel+close+v.slice(epos);
-        ed.selectionStart = s+1;
-        ed.selectionEnd = epos+1;
-    } else {
-        ed.value = v.slice(0,s)+open+close+v.slice(epos);
-        ed.selectionStart = ed.selectionEnd = s+1;
-    }
-}
-
-function insertText(ed,str,e){
-    e.preventDefault();
-    let s=ed.selectionStart, epos=ed.selectionEnd;
-    let v = ed.value;
-    ed.value = v.slice(0,s) + str + v.slice(epos);
-    ed.selectionStart = ed.selectionEnd = s+str.length;
-}
-
-editor.addEventListener("keydown", function(e){
-    let ed = editor;
-
-    /* autocomplete () [] "" */
-    if(e.key==="("){ insertPair(ed,"(",")",e); return; }
-    if(e.key==="["){ insertPair(ed,"[","]",e); return; }
-    if(e.key==='"'){ insertPair(ed,'"','"',e); return; }
-
-    /* smart backspace for pairs & 4 spaces */
-    if(e.key==="Backspace"){
-        let pos = ed.selectionStart;
-        if(pos>0 && ed.selectionStart===ed.selectionEnd){
-            let val = ed.value;
-            let prev = val[pos-1];
-            let next = val[pos];
-
-            let pairs = {"(" : ")", "[" : "]", '"' : '"' };
-            if(pairs[prev] && pairs[prev]===next){
-                e.preventDefault();
-                ed.value = val.slice(0,pos-1)+val.slice(pos+1);
-                ed.selectionStart = ed.selectionEnd = pos-1;
-                return;
-            }
-
-            if(pos>=4 && val.slice(pos-4,pos)==="    "){
-                e.preventDefault();
-                ed.value = val.slice(0,pos-4)+val.slice(pos);
-                ed.selectionStart = ed.selectionEnd = pos-4;
-                return;
-            }
-        }
+    function setStatus(text, type = "normal") {
+      statusEl.textContent = "";
+      const dot = document.createElement("span");
+      dot.className = "status-dot";
+      statusEl.className = "status";
+      if (type === "success") statusEl.classList.add("success");
+      if (type === "error") statusEl.classList.add("error");
+      statusEl.appendChild(dot);
+      statusEl.appendChild(document.createTextNode(" " + text));
     }
 
-    /* tab inserts 4 spaces */
-    if(e.key==="Tab"){ insertText(ed,"    ",e); return; }
-
-    /* Enter indentation logic + { block logic */
-    if(e.key==="Enter"){
-        let pos = ed.selectionStart;
-        let val = ed.value;
-        let before = val.slice(0,pos);
-        let after = val.slice(pos);
-
-        let lastNL = before.lastIndexOf("\n");
-        let start = lastNL===-1?0:lastNL+1;
-        let line = before.slice(start);
-        let indent = line.match(/^[\t ]*/)[0];
-        let trimmed = line.trimEnd();
-        let indentUnit = "    ";
-
-        e.preventDefault();
-
-        if(trimmed.endsWith("{")){
-            ed.value =
-                before + "\n" +
-                indent + indentUnit + "\n" +
-                indent + "}" +
-                after;
-
-            let newPos = before.length + 1 + indent.length + indentUnit.length;
-            ed.selectionStart = ed.selectionEnd = newPos;
-            return;
-        }
-
-        ed.value = before + "\n" + indent + after;
-        ed.selectionStart = ed.selectionEnd = before.length + 1 + indent.length;
-        return;
+    function first_Int(s) {
+      const m = String(s).match(/\d+/);
+      return m ? parseInt(m[0], 10) : 0;
     }
-});
-
-/* ====== COMPILER HELPERS ====== */
-
-function extractMainBody(src){
-    const sig = "public static void main(main.execute(1))";
-    let i = src.indexOf(sig);
-    if(i<0) throw {msg:"main(main.execute(1)) not found", line:0};
-
-    let brace = src.indexOf("{", i);
-    if(brace<0) throw {msg:"opening { not found for main", line:0};
-
-    let depth=1;
-    for(let j=brace+1;j<src.length;j++){
-        if(src[j]==="{") depth++;
-        if(src[j]==="}") depth--;
-        if(depth===0){
-            return src.slice(brace+1,j);
-        }
+    function sum_Int(s) {
+      const matches = String(s).match(/\d+/g) || [];
+      return matches.reduce((acc, x) => acc + parseInt(x, 10), 0);
     }
-    throw {msg:"closing } not found for main", line:0};
-}
+    function eachSum_Int(s) {
+      const digits = String(s).match(/\d/g) || [];
+      return digits.reduce((acc, d) => acc + parseInt(d, 10), 0);
+    }
+    function eachFirst_Int(s) {
+      const m = String(s).match(/\d/);
+      return m ? parseInt(m[0], 10) : 0;
+    }
 
-function translateExpression(expr){
-    return expr
-        .replace(/first\.Int/g,"first_Int")
-        .replace(/sum\.Int/g,"sum_Int")
-        .replace(/eachSum\.Int/g,"eachSum_Int")
-        .replace(/eachFirst\.Int/g,"eachFirst_Int");
-}
-
-const eazyConsole = {
-    print(v=""){ output.textContent+=String(v); return this; },
-    dl(){ output.textContent+="\n"; return this; },
-    ul(){ output.textContent+="\n"; return this; }
-};
-
-function first_Int(s){ let m=String(s).match(/\d+/); return m?+m[0]:0; }
-function sum_Int(s){ let m=String(s).match(/\d+/g)||[]; return m.reduce((a,b)=>a+ +b,0); }
-function eachSum_Int(s){ let m=String(s).match(/\d/g)||[]; return m.reduce((a,b)=>a+ +b,0); }
-function eachFirst_Int(s){ let m=String(s).match(/\d/); return m?+m[0]:0; }
-
-
-/* ====== FULL COMPILER WITH MULTIPLE ERRORS ====== */
-
-function compileEazy(code){
-    let errors = [];
-
-    let lines = code.split("\n");
-
-    let tokens = [];
-    lines.forEach((line,idx)=>{
-        let parts=line.split(";");
-        for(let i=0;i<parts.length;i++){
-            let seg = parts[i].trim();
-            if(seg==="" && i<parts.length-1){
-                tokens.push({text:";", line:idx+1});
-                continue;
-            }
-            if(seg!==""){
-                tokens.push({text:seg+(i<parts.length-1?";":""), line:idx+1});
-            }
+    // Extract main body + region
+    function extractMainRegion(source) {
+      const sig = "public static void main(main.execute(1))";
+      const sigIndex = source.indexOf(sig);
+      if (sigIndex === -1) {
+        throw new Error("main.execute(1) method not found");
+      }
+      const braceStart = source.indexOf("{", sigIndex);
+      if (braceStart === -1) {
+        throw new Error("Opening { for main.execute(1) not found");
+      }
+      let depth = 1;
+      const n = source.length;
+      let bodyStart = braceStart + 1;
+      for (let i = braceStart + 1; i < n; i++) {
+        const ch = source[i];
+        if (ch === "{") depth++;
+        else if (ch === "}") {
+          depth--;
+          if (depth === 0) {
+            const bodyEnd = i; // index of closing }
+            return {
+              body: source.slice(bodyStart, bodyEnd),
+              bodyStart,
+              bodyEnd
+            };
+          }
         }
-    });
+      }
+      throw new Error("Could not find matching } for main.execute(1)");
+    }
 
-    let out=[];
+    // Ensure no executable code outside main
+    function validateOutsideMain(source, mainStart, mainEnd) {
+      const patterns = [
+        { re: /console\.print\s*\(/g, msg: "console.print is only allowed inside main(main.execute(1))" },
+        { re: /\bfor\s*\(/g, msg: "for-loops are only allowed inside main(main.execute(1))" },
+        { re: /\bwhile\s*\(/g, msg: "while-loops are only allowed inside main(main.execute(1))" },
+        { re: /\bif\s*\(/g, msg: "if-statements are only allowed inside main(main.execute(1))" }
+      ];
 
-    for(let t of tokens){
-        let raw=t.text;
-        let ln = t.line;
-        let line = raw.trim();
+      for (const { re, msg } of patterns) {
+        let m;
+        while ((m = re.exec(source)) !== null) {
+          const idx = m.index;
+          if (idx < mainStart || idx >= mainEnd) {
+            throw new Error(msg);
+          }
+        }
+      }
+    }
 
-        if(line==="" ){ out.push(""); continue; }
+    function translateExpression(expr) {
+      let e = expr.trim();
+      e = e.replace(/first\.Int/g, "first_Int");
+      e = e.replace(/sum\.Int/g, "sum_Int");
+      e = e.replace(/eachSum\.Int/g, "eachSum_Int");
+      e = e.replace(/eachFirst\.Int/g, "eachFirst_Int");
+      return e;
+    }
 
-        if(!(
-            line.endsWith(";") ||
-            line.endsWith("{") ||
-            line.endsWith("}") ||
-            line.startsWith("for") ||
-            line.startsWith("if") ||
-            line.startsWith("else") ||
-            line.startsWith("while")
-        )){
-            errors.push(`Line ${ln}: Missing semicolon → "${line}"`);
+    function compileEazy(code) {
+      const lines = code.split(/\r?\n/);
+      const out = [];
+
+      for (let raw of lines) {
+        let line = raw;
+        const trimmed = line.trim();
+
+        if (trimmed === "") {
+          out.push("");
+          continue;
+        }
+
+        if (trimmed === "{" || trimmed === "}") {
+          out.push(trimmed);
+          continue;
+        }
+
+        if (trimmed.startsWith("//")) {
+          out.push("//" + trimmed.slice(2));
+          continue;
+        }
+
+        // console.print(...)+.dl();
+        {
+          const m = trimmed.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/);
+          if (m) {
+            const inner = m[1].trim();
+            if (inner) {
+              const jsExpr = translateExpression(inner);
+              out.push(`eazyConsole.print(${jsExpr});`);
+            } else {
+              out.push(`eazyConsole.print("");`);
+            }
+            out.push(`eazyConsole.dl();`);
             continue;
+          }
         }
 
-        let clean = line.endsWith(";") ? line.slice(0,-1).trim() : line;
-
-        if(clean.startsWith("console.print") && code.indexOf("main.execute(1)")<0){
-            errors.push(`Line ${ln}: console.print cannot be outside main`);
+        // console.print(...);
+        {
+          const m = trimmed.match(/^console\.print\((.*)\)\s*;?$/);
+          if (m) {
+            const inner = m[1].trim();
+            if (inner) {
+              const jsExpr = translateExpression(inner);
+              out.push(`eazyConsole.print(${jsExpr});`);
+            } else {
+              out.push(`eazyConsole.print("");`);
+            }
+            continue;
+          }
         }
 
-        try{
-            /* console.print()+.dl() */
-            let m;
-            m = clean.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)$/);
-            if(m){
-                let inner=m[1].trim();
-                let js = inner?translateExpression(inner):'""';
-                out.push(`eazyConsole.print(${js});`);
-                out.push(`eazyConsole.dl();`);
-                continue;
-            }
-
-            m = clean.match(/^console\.print\((.*)\)$/);
-            if(m){
-                let inner=m[1].trim();
-                let js = inner?translateExpression(inner):'""';
-                out.push(`eazyConsole.print(${js});`);
-                continue;
-            }
-
-            m = clean.match(/^(int|String|var)\s+([A-Za-z_]\w*)\s*=\s*(.+)$/);
-            if(m){
-                out.push(`let ${m[2]}=${translateExpression(m[3])};`);
-                continue;
-            }
-
-            m = clean.match(/^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\((.+),(.+)\)\)$/);
-            if(m){
-                let v=m[1];
-                let a=translateExpression(m[2]);
-                let b=translateExpression(m[3]);
-                out.push(`for(let ${v}=${a};${v}<=${b};${v}++){`);
-                continue;
-            }
-
-            if(clean.startsWith("if") || clean.startsWith("while") || clean.startsWith("else if")){
-                let o=line.indexOf("(");
-                let c=line.lastIndexOf(")");
-                let before=line.slice(0,o+1);
-                let expr=line.slice(o+1,c);
-                let after=line.slice(c);
-                out.push(before+translateExpression(expr)+after);
-                continue;
-            }
-
-            m = clean.match(/^([A-Za-z_]\w*)\s*=\s*(.+)$/);
-            if(m){
-                out.push(`${m[1]}=${translateExpression(m[2])};`);
-                continue;
-            }
-
-            if(line==="{"||line==="}"){ out.push(line); continue; }
-
-            throw "unrecognized";
-
-        }catch{
-            errors.push(`Line ${ln}: Cannot compile "${line}"`);
+        // declarations: int / String / var
+        {
+          const m = trimmed.match(/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+          if (m) {
+            const name = m[2];
+            const expr = translateExpression(m[3]);
+            out.push(`let ${name} = ${expr};`);
+            continue;
+          }
         }
+
+        // for (int i:range++(1,5)){
+        {
+          const m = trimmed.match(
+            /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/,
+          );
+          if (m) {
+            const varName = m[1];
+            const start = translateExpression(m[2]);
+            const end = translateExpression(m[3]);
+            out.push(
+              `for (let ${varName} = ${start}; ${varName} <= ${end}; ${varName}++) {`,
+            );
+            continue;
+          }
+        }
+
+        // if / else if / while
+        if (
+          trimmed.startsWith("if ") ||
+          trimmed.startsWith("else if ") ||
+          trimmed.startsWith("while ")
+        ) {
+          const idxOpen = line.indexOf("(");
+          const idxClose = line.lastIndexOf(")");
+          if (idxOpen !== -1 && idxClose !== -1 && idxClose > idxOpen) {
+            const before = line.slice(0, idxOpen + 1);
+            const expr = line.slice(idxOpen + 1, idxClose);
+            const after = line.slice(idxClose);
+            line = before + translateExpression(expr) + after;
+          }
+          out.push(line);
+          continue;
+        }
+
+        // assignment: x = expr;
+        {
+          const m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+          if (m && !trimmed.startsWith("for ")) {
+            const name = m[1];
+            const expr = translateExpression(m[2]);
+            out.push(`${name} = ${expr};`);
+            continue;
+          }
+        }
+
+        // unknown line -> compile error
+        throw new Error("Cannot compile line: " + trimmed);
+      }
+
+      return out.join("\n");
     }
 
-    if(errors.length>0) throw errors;
+    function runEazyCode() {
+      const fullSource = editorEl.value;
+      outputEl.textContent = "";
+      setStatus("Extracting main...", "normal");
 
-    return out.join("\n");
-}
+      try {
+        const region = extractMainRegion(fullSource);
+        validateOutsideMain(fullSource, region.bodyStart, region.bodyEnd);
 
-/* ====== RUN ====== */
-
-function runEazy(){
-    output.textContent="";
-    try{
-        let src = editor.value;
-        let body = extractMainBody(src);
-        let js = compileEazy(body);
+        setStatus("Compiling...", "normal");
+        const js = compileEazy(region.body);
+        setStatus("Running...", "normal");
         eval(js);
-    }catch(err){
-        if(Array.isArray(err)){
-            output.innerHTML = "<span class='error'>" + err.join("\n") + "</span>";
-        } else {
-            output.innerHTML = "<span class='error'>"+err.msg+"</span>";
-        }
+        setStatus("Done", "success");
+      } catch (err) {
+        outputEl.textContent += "[Error] " + err.message + "\n";
+        setStatus("Error", "error");
+      }
     }
-}
-</script>
+
+    // ========= Editor shortcuts =========
+
+    function insertPair(el, openChar, closeChar, event) {
+      event.preventDefault();
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const value = el.value;
+      const selected = value.slice(start, end);
+      const before = value.slice(0, start);
+      const after = value.slice(end);
+
+      if (selected.length > 0) {
+        el.value = before + openChar + selected + closeChar + after;
+        el.selectionStart = start + 1;
+        el.selectionEnd = start + 1 + selected.length;
+      } else {
+        el.value = before + openChar + closeChar + after;
+        el.selectionStart = el.selectionEnd = start + 1;
+      }
+    }
+
+    function insertText(el, text, event) {
+      if (event) event.preventDefault();
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const value = el.value;
+      const before = value.slice(0, start);
+      const after = value.slice(end);
+      el.value = before + text + after;
+      el.selectionStart = el.selectionEnd = start + text.length;
+    }
+
+    editorEl.addEventListener("keydown", function (e) {
+      // auto-pairs for (), [], ""
+      if (e.key === "(") {
+        insertPair(editorEl, "(", ")", e);
+        return;
+      }
+      if (e.key === "[") {
+        insertPair(editorEl, "[", "]", e);
+        return;
+      }
+      if (e.key === '"') {
+        insertPair(editorEl, '"', '"', e);
+        return;
+      }
+
+      // smart Backspace
+      if (e.key === "Backspace") {
+        const el = editorEl;
+        const pos = el.selectionStart;
+        const value = el.value;
+
+        // if between pair (), [], ""
+        if (pos > 0 && el.selectionStart === el.selectionEnd) {
+          const before = value[pos - 1];
+          const after = value[pos];
+          const pairs = { "(": ")", "[": "]", '"': '"' };
+          if (pairs[before] && pairs[before] === after) {
+            e.preventDefault();
+            el.value = value.slice(0, pos - 1) + value.slice(pos + 1);
+            el.selectionStart = el.selectionEnd = pos - 1;
+            return;
+          }
+        }
+
+        // delete 4-space "tab" at once
+        if (el.selectionStart === el.selectionEnd && pos >= 4) {
+          const chunk = value.slice(pos - 4, pos);
+          if (chunk === "    ") {
+            e.preventDefault();
+            el.value = value.slice(0, pos - 4) + value.slice(pos);
+            el.selectionStart = el.selectionEnd = pos - 4;
+            return;
+          }
+        }
+      }
+
+      // Tab inserts 4 spaces
+      if (e.key === "Tab") {
+        insertText(editorEl, "    ", e);
+        return;
+      }
+
+      // Enter: keep indent, special-case for lines ending with {
+      if (e.key === "Enter") {
+        const el = editorEl;
+        const start = el.selectionStart;
+        const value = el.value;
+        const before = value.slice(0, start);
+        const after = value.slice(start);
+        const lastNewline = before.lastIndexOf("\n");
+        const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+        const currentLine = before.slice(lineStart);
+        const indentMatch = currentLine.match(/^[\t ]*/);
+        const currentIndent = indentMatch ? indentMatch[0] : "";
+        const trimmedLine = currentLine.trimEnd();
+        const indentUnit = "    ";
+
+        if (trimmedLine.endsWith("{")) {
+          e.preventDefault();
+          const newText =
+            before +
+            "\n" +
+            currentIndent +
+            indentUnit +
+            "\n" +
+            currentIndent +
+            "}" +
+            after;
+          el.value = newText;
+          const cursorPos =
+            before.length + 1 + currentIndent.length + indentUnit.length;
+          el.selectionStart = el.selectionEnd = cursorPos;
+        } else {
+          e.preventDefault();
+          const newText = before + "\n" + currentIndent + after;
+          el.value = newText;
+          const cursorPos = before.length + 1 + currentIndent.length;
+          el.selectionStart = el.selectionEnd = cursorPos;
+        }
+      }
+    });
+  </script>
 </body>
 </html>
