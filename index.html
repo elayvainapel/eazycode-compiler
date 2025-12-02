@@ -270,7 +270,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.2 · smarter editor</div>
+      <div class="badge">v0.3 · strict ; + multi errors</div>
     </div>
 
     <div class="main">
@@ -380,7 +380,7 @@
       }
       let depth = 1;
       const n = source.length;
-      let bodyStart = braceStart + 1;
+      const bodyStart = braceStart + 1;
       for (let i = braceStart + 1; i < n; i++) {
         const ch = source[i];
         if (ch === "{") depth++;
@@ -399,24 +399,44 @@
       throw new Error("Could not find matching } for main.execute(1)");
     }
 
-    // Ensure no executable code outside main
+    // Ensure no executable code outside main (console.print/for/while/if)
     function validateOutsideMain(source, mainStart, mainEnd) {
+      const errors = [];
       const patterns = [
-        { re: /console\.print\s*\(/g, msg: "console.print is only allowed inside main(main.execute(1))" },
-        { re: /\bfor\s*\(/g, msg: "for-loops are only allowed inside main(main.execute(1))" },
-        { re: /\bwhile\s*\(/g, msg: "while-loops are only allowed inside main(main.execute(1))" },
-        { re: /\bif\s*\(/g, msg: "if-statements are only allowed inside main(main.execute(1))" }
+        {
+          re: /console\.print\s*\(/g,
+          msg: "console.print is only allowed inside main(main.execute(1))"
+        },
+        {
+          re: /\bfor\s*\(/g,
+          msg: "for-loops are only allowed inside main(main.execute(1))"
+        },
+        {
+          re: /\bwhile\s*\(/g,
+          msg: "while-loops are only allowed inside main(main.execute(1))"
+        },
+        {
+          re: /\bif\s*\(/g,
+          msg: "if-statements are only allowed inside main(main.execute(1))"
+        }
       ];
 
+      function indexToLine(idx) {
+        return source.slice(0, idx).split(/\r?\n/).length;
+      }
+
       for (const { re, msg } of patterns) {
+        re.lastIndex = 0;
         let m;
         while ((m = re.exec(source)) !== null) {
           const idx = m.index;
           if (idx < mainStart || idx >= mainEnd) {
-            throw new Error(msg);
+            const line = indexToLine(idx);
+            errors.push(`Line ${line}: ${msg}`);
           }
         }
       }
+      return errors;
     }
 
     function translateExpression(expr) {
@@ -428,121 +448,181 @@
       return e;
     }
 
-    function compileEazy(code) {
+    // Compile eazyCode main body to JS
+    // - requires ';' for executable statements (except if/for/while/else, {, }, //)
+    // - supports multiple statements on one line separated by ';'
+    // - collects all compile errors with line numbers
+    function compileEazy(code, baseLine) {
       const lines = code.split(/\r?\n/);
       const out = [];
+      const errors = [];
 
-      for (let raw of lines) {
-        let line = raw;
+      function addError(msg) {
+        errors.push(msg);
+      }
+
+      function processStatement(rawSegment, lineNo) {
+        const line = rawSegment;
         const trimmed = line.trim();
+
+        if (trimmed === "") {
+          return;
+        }
+
+        if (trimmed === "{" || trimmed === "}") {
+          out.push(trimmed);
+          return;
+        }
+
+        if (trimmed.startsWith("//")) {
+          out.push("//" + trimmed.slice(2));
+          return;
+        }
+
+        // console.print(...)+.dl();
+        let m = trimmed.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/);
+        if (m) {
+          const inner = m[1].trim();
+          if (inner) {
+            const jsExpr = translateExpression(inner);
+            out.push(`eazyConsole.print(${jsExpr});`);
+          } else {
+            out.push(`eazyConsole.print("");`);
+          }
+          out.push(`eazyConsole.dl();`);
+          return;
+        }
+
+        // console.print(...);
+        m = trimmed.match(/^console\.print\((.*)\)\s*;?$/);
+        if (m) {
+          const inner = m[1].trim();
+          if (inner) {
+            const jsExpr = translateExpression(inner);
+            out.push(`eazyConsole.print(${jsExpr});`);
+          } else {
+            out.push(`eazyConsole.print("");`);
+          }
+          return;
+        }
+
+        // declarations: int / String / var (+ static versions)
+        m = trimmed.match(/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+        if (m) {
+          const name = m[2];
+          const expr = translateExpression(m[3]);
+          out.push(`let ${name} = ${expr};`);
+          return;
+        }
+
+        // for (int i:range++(1,5)){
+        m = trimmed.match(
+          /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/);
+        if (m) {
+          const varName = m[1];
+          const start = translateExpression(m[2]);
+          const end = translateExpression(m[3]);
+          out.push(
+            `for (let ${varName} = ${start}; ${varName} <= ${end}; ${varName}++) {`
+          );
+          return;
+        }
+
+        // if / else if / while (condition)
+        if (
+          trimmed.startsWith("if ") ||
+          trimmed.startsWith("else if ") ||
+          trimmed.startsWith("while ")
+        ) {
+          let lineCopy = line;
+          const idxOpen = lineCopy.indexOf("(");
+          const idxClose = lineCopy.lastIndexOf(")");
+          if (idxOpen !== -1 && idxClose !== -1 && idxClose > idxOpen) {
+            const before = lineCopy.slice(0, idxOpen + 1);
+            const expr = lineCopy.slice(idxOpen + 1, idxClose);
+            const after = lineCopy.slice(idxClose);
+            lineCopy = before + translateExpression(expr) + after;
+          }
+          out.push(lineCopy);
+          return;
+        }
+
+        // assignment: x = expr;
+        m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+        if (m && !trimmed.startsWith("for ")) {
+          const name = m[1];
+          const expr = translateExpression(m[2]);
+          out.push(`${name} = ${expr};`);
+          return;
+        }
+
+        addError(`Line ${lineNo}: Cannot compile statement: ${trimmed}`);
+      }
+
+      for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        const physicalLineNo = baseLine + i;
+        const trimmed = raw.trim();
 
         if (trimmed === "") {
           out.push("");
           continue;
         }
 
-        if (trimmed === "{" || trimmed === "}") {
-          out.push(trimmed);
-          continue;
-        }
-
-        if (trimmed.startsWith("//")) {
-          out.push("//" + trimmed.slice(2));
-          continue;
-        }
-
-        // console.print(...)+.dl();
-        {
-          const m = trimmed.match(/^console\.print\((.*)\)\s*\+\s*\.dl\(\)\s*;?$/);
-          if (m) {
-            const inner = m[1].trim();
-            if (inner) {
-              const jsExpr = translateExpression(inner);
-              out.push(`eazyConsole.print(${jsExpr});`);
-            } else {
-              out.push(`eazyConsole.print("");`);
-            }
-            out.push(`eazyConsole.dl();`);
-            continue;
-          }
-        }
-
-        // console.print(...);
-        {
-          const m = trimmed.match(/^console\.print\((.*)\)\s*;?$/);
-          if (m) {
-            const inner = m[1].trim();
-            if (inner) {
-              const jsExpr = translateExpression(inner);
-              out.push(`eazyConsole.print(${jsExpr});`);
-            } else {
-              out.push(`eazyConsole.print("");`);
-            }
-            continue;
-          }
-        }
-
-        // declarations: int / String / var
-        {
-          const m = trimmed.match(/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
-          if (m) {
-            const name = m[2];
-            const expr = translateExpression(m[3]);
-            out.push(`let ${name} = ${expr};`);
-            continue;
-          }
-        }
-
-        // for (int i:range++(1,5)){
-        {
-          const m = trimmed.match(
-            /^for\s*\(\s*int\s+([A-Za-z_]\w*)\s*:\s*range\+\+\(\s*(.+)\s*,\s*(.+)\s*\)\s*\)\s*\{?$/,
-          );
-          if (m) {
-            const varName = m[1];
-            const start = translateExpression(m[2]);
-            const end = translateExpression(m[3]);
-            out.push(
-              `for (let ${varName} = ${start}; ${varName} <= ${end}; ${varName}++) {`,
-            );
-            continue;
-          }
-        }
-
-        // if / else if / while
-        if (
+        const isCommentLine = trimmed.startsWith("//");
+        const isBraceOnly = trimmed === "{" || trimmed === "}";
+        const isControl =
+          trimmed.startsWith("for ") ||
           trimmed.startsWith("if ") ||
           trimmed.startsWith("else if ") ||
-          trimmed.startsWith("while ")
-        ) {
-          const idxOpen = line.indexOf("(");
-          const idxClose = line.lastIndexOf(")");
-          if (idxOpen !== -1 && idxClose !== -1 && idxClose > idxOpen) {
-            const before = line.slice(0, idxOpen + 1);
-            const expr = line.slice(idxOpen + 1, idxClose);
-            const after = line.slice(idxClose);
-            line = before + translateExpression(expr) + after;
-          }
-          out.push(line);
+          trimmed.startsWith("else ") ||
+          trimmed.startsWith("while ");
+
+        const needsSemicolon = !isCommentLine && !isBraceOnly && !isControl;
+
+        // If this is a "normal" statement line, we require at least one ';'
+        if (needsSemicolon && !raw.includes(";")) {
+          addError(`Line ${physicalLineNo}: Missing ';' at end of line`);
+          // Skip compiling this line, move on to collect more errors
           continue;
         }
 
-        // assignment: x = expr;
-        {
-          const m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
-          if (m && !trimmed.startsWith("for ")) {
-            const name = m[1];
-            const expr = translateExpression(m[2]);
-            out.push(`${name} = ${expr};`);
-            continue;
-          }
+        // Lines with no ';' left (control, brace, full-line comment)
+        if (!raw.includes(";")) {
+          processStatement(raw, physicalLineNo);
+          continue;
         }
 
-        // unknown line -> compile error
-        throw new Error("Cannot compile line: " + trimmed);
+        // There is at least one ';' – split into statements on this physical line
+        let remaining = raw;
+        while (true) {
+          const idx = remaining.indexOf(";");
+          if (idx === -1) break;
+          const segment = remaining.slice(0, idx + 1); // include ';'
+          processStatement(segment, physicalLineNo);
+          remaining = remaining.slice(idx + 1);
+        }
+
+        const leftover = remaining;
+        const leftoverTrimmed = leftover.trim();
+        if (leftoverTrimmed.length === 0) {
+          continue;
+        }
+
+        if (leftoverTrimmed.startsWith("//")) {
+          processStatement(leftover, physicalLineNo);
+        } else if (!needsSemicolon) {
+          // A control/brace line that also had semicolon-terminated pieces; treat leftover as another statement
+          processStatement(leftover, physicalLineNo);
+        } else {
+          // There was some extra code after the last ';' that doesn't start a comment
+          addError(
+            `Line ${physicalLineNo}: Missing ';' before "${leftoverTrimmed}"`
+          );
+        }
       }
 
-      return out.join("\n");
+      return { js: out.join("\n"), errors };
     }
 
     function runEazyCode() {
@@ -550,17 +630,57 @@
       outputEl.textContent = "";
       setStatus("Extracting main...", "normal");
 
-      try {
-        const region = extractMainRegion(fullSource);
-        validateOutsideMain(fullSource, region.bodyStart, region.bodyEnd);
+      const allErrors = [];
 
-        setStatus("Compiling...", "normal");
-        const js = compileEazy(region.body);
-        setStatus("Running...", "normal");
-        eval(js);
+      let region = null;
+      try {
+        region = extractMainRegion(fullSource);
+      } catch (err) {
+        allErrors.push(err.message);
+      }
+
+      if (!region) {
+        // No main region – just show the errors and stop
+        allErrors.forEach(msg => {
+          outputEl.textContent += "[Error] " + msg + "\n";
+        });
+        setStatus("Error", "error");
+        return;
+      }
+
+      // Outside-main executable validation (console.print / for / while / if)
+      const outsideErrors = validateOutsideMain(
+        fullSource,
+        region.bodyStart,
+        region.bodyEnd
+      );
+      allErrors.push(...outsideErrors);
+
+      // Figure out the line number of the first line inside main(...)
+      const prefix = fullSource.slice(0, region.bodyStart);
+      const baseLine = prefix.split(/\r?\n/).length;
+
+      setStatus("Compiling...", "normal");
+      const compileResult = compileEazy(region.body, baseLine);
+      allErrors.push(...compileResult.errors);
+
+      if (allErrors.length > 0) {
+        allErrors.forEach(msg => {
+          outputEl.textContent += "[Error] " + msg + "\n";
+        });
+        setStatus(
+          `Found ${allErrors.length} error${allErrors.length > 1 ? "s" : ""}`,
+          "error"
+        );
+        return;
+      }
+
+      setStatus("Running...", "normal");
+      try {
+        eval(compileResult.js);
         setStatus("Done", "success");
       } catch (err) {
-        outputEl.textContent += "[Error] " + err.message + "\n";
+        outputEl.textContent += "[Runtime Error] " + err.message + "\n";
         setStatus("Error", "error");
       }
     }
