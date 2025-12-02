@@ -514,7 +514,7 @@
           }
         }
 
-        // if we reach here, it's something we don't understand -> error
+        // unknown line -> compile error
         throw new Error("Cannot compile line: " + trimmed);
       }
 
@@ -539,7 +539,7 @@
       }
     }
 
-    // ========= Editor shortcuts: (), [], {} + Enter indent =========
+    // ========= Editor shortcuts =========
 
     function insertPair(el, openChar, closeChar, event) {
       event.preventDefault();
@@ -560,7 +560,19 @@
       }
     }
 
+    function insertText(el, text, event) {
+      if (event) event.preventDefault();
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const value = el.value;
+      const before = value.slice(0, start);
+      const after = value.slice(end);
+      el.value = before + text + after;
+      el.selectionStart = el.selectionEnd = start + text.length;
+    }
+
     editorEl.addEventListener("keydown", function (e) {
+      // auto-pairs
       if (e.key === "(") {
         insertPair(editorEl, "(", ")", e);
         return;
@@ -569,7 +581,40 @@
         insertPair(editorEl, "[", "]", e);
         return;
       }
+      if (e.key === '"') {
+        insertPair(editorEl, '"', '"', e);
+        return;
+      }
 
+      // smart Backspace for (), [], ""
+      if (e.key === "Backspace") {
+        const el = editorEl;
+        const pos = el.selectionStart;
+        if (pos > 0 && el.selectionStart === el.selectionEnd) {
+          const value = el.value;
+          const before = value[pos - 1];
+          const after = value[pos];
+          const pairs = {
+            "(": ")",
+            "[": "]",
+            '"': '"'
+          };
+          if (pairs[before] && pairs[before] === after) {
+            e.preventDefault();
+            el.value = value.slice(0, pos - 1) + value.slice(pos + 1);
+            el.selectionStart = el.selectionEnd = pos - 1;
+            return;
+          }
+        }
+      }
+
+      // Tab inserts spaces
+      if (e.key === "Tab") {
+        insertText(editorEl, "    ", e); // 4 spaces
+        return;
+      }
+
+      // Enter: keep indent, and special case for lines ending with {
       if (e.key === "Enter") {
         const el = editorEl;
         const start = el.selectionStart;
@@ -582,11 +627,11 @@
         const indentMatch = currentLine.match(/^[\t ]*/);
         const currentIndent = indentMatch ? indentMatch[0] : "";
         const trimmedLine = currentLine.trimEnd();
+        const indentUnit = "    ";
 
-        // if line ends with { -> auto block with indent
+        // if line ends with { -> create block
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          const indentUnit = "    "; // 4 spaces
           const newText =
             before +
             "\n" +
@@ -600,6 +645,15 @@
           const cursorPos =
             before.length + 1 + currentIndent.length + indentUnit.length;
           el.selectionStart = el.selectionEnd = cursorPos;
+          return;
+        } else {
+          // normal enter: keep same indent
+          e.preventDefault();
+          const newText = before + "\n" + currentIndent + after;
+          el.value = newText;
+          const cursorPos = before.length + 1 + currentIndent.length;
+          el.selectionStart = el.selectionEnd = cursorPos;
+          return;
         }
       }
     });
