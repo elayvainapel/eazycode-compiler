@@ -148,7 +148,8 @@
     }
 
     .line-numbers {
-      flex: 0 0 40px; /* narrow fixed gutter */
+      width: 42px;
+      flex: 0 0 42px;     /* fixed narrow gutter */
       padding: 10px 4px 10px 8px;
       font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas,
         "Liberation Mono", "Courier New", monospace;
@@ -287,7 +288,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.8 · slim numbers + smart braces</div>
+      <div class="badge">v0.9 · slim numbers + fixed main</div>
     </div>
 
     <div class="main">
@@ -416,7 +417,7 @@
         else if (ch === "}") {
           depth--;
           if (depth === 0 && i > openIndex) {
-            return true; // found its matching }
+            return true;
           }
         }
       }
@@ -495,7 +496,7 @@
       return errors;
     }
 
-    // ===== Global syntax validation outside main: unknown → error (no ; check) =====
+    // ===== Global syntax validation outside main =====
     function validateGlobalSyntax(source, mainStart, mainEnd) {
       const lines = source.split(/\r?\n/);
       const errors = [];
@@ -503,22 +504,22 @@
 
       for (let i = 0; i < lines.length; i++) {
         const lineText = lines[i];
+        const lineNo = i + 1;
+        const trimmed = lineText.trim();
         const lineStart = offset;
         const lineEnd = offset + lineText.length;
         offset = lineEnd + 1;
-        const lineNo = i + 1;
 
-        const trimmed = lineText.trim();
         if (trimmed === "") continue;
 
-        const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
-        if (intersectsMain) {
-          // allow the main signature line to be ignored here
-          if (trimmed.startsWith("public static void main(main.execute(1))")) {
-            continue;
-          }
+        // Main signature is ALWAYS allowed (no errors, no ; needed), anywhere
+        if (/^public\s+static\s+void\s+main\s*\(\s*main\.execute\(1\)\s*\)\s*\{?\s*$/.test(trimmed)) {
           continue;
         }
+
+        // Lines inside main body are handled by compileEazy – skip them entirely
+        const intersectsMain = !(lineEnd <= mainStart || lineStart >= mainEnd);
+        if (intersectsMain) continue;
 
         // Comments
         if (trimmed.startsWith("//")) continue;
@@ -531,7 +532,7 @@
           continue;
         }
 
-        // Method headers (including main) – allowed outside main body
+        // Other method headers (functions) outside main
         if (/^(public\s+)?(static\s+)?(int|String|var|void)\s+[A-Za-z_]\w*\s*\([^)]*\)\s*\{?\s*$/.test(trimmed)) {
           continue;
         }
@@ -542,6 +543,14 @@
           trimmed.startsWith("else if ") ||
           trimmed.startsWith("else ") ||
           trimmed.startsWith("while ");
+
+        const needsSemicolon = !isControl;
+
+        // Require ';' for executable-ish / declaration lines outside main
+        if (needsSemicolon && !lineText.includes(";")) {
+          errors.push(`Line ${lineNo}: Missing ';' at end of line`);
+          continue;
+        }
 
         // Recognized declarations
         if (/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*.+;?$/.test(trimmed)) {
@@ -561,7 +570,7 @@
           continue;
         }
 
-        // if/else if/else/while lines
+        // if/else if/else/while outside main are allowed structurally
         if (isControl) {
           continue;
         }
@@ -710,7 +719,6 @@
 
         const needsSemicolon = !isCommentLine && !isBraceOnly && !isControl;
 
-        // normal statements must contain at least one ';'
         if (needsSemicolon && !raw.includes(";")) {
           addError(`Line ${physicalLineNo}: Missing ';' at end of line`);
           continue;
@@ -721,7 +729,6 @@
           continue;
         }
 
-        // split on ';'
         let remaining = raw;
         while (true) {
           const idx = remaining.indexOf(";");
@@ -925,12 +932,11 @@
 
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
-          // find the index of THIS '{'
           const openIndex = value.lastIndexOf("{", start - 1);
           const alreadyHasMatch = hasMatchingClosingBrace(value, openIndex);
 
           if (alreadyHasMatch) {
-            // block already has a matching }, don't create a new one
+            // Only indent between { and its existing }
             const newText =
               before +
               "\n" +
@@ -942,7 +948,7 @@
               before.length + 1 + currentIndent.length + indentUnit.length;
             el.selectionStart = el.selectionEnd = cursorPos;
           } else {
-            // no matching } yet, create one
+            // Create closing brace
             const newText =
               before +
               "\n" +
