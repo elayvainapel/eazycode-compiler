@@ -270,7 +270,7 @@
         <div class="title-main">eazyCode Online Compiler</div>
         <div class="title-sub">Code inside Main.main(main.execute(1)) like Java, but yours</div>
       </div>
-      <div class="badge">v0.1 · class + main</div>
+      <div class="badge">v0.2 · smarter editor</div>
     </div>
 
     <div class="main">
@@ -278,7 +278,7 @@
       <div class="panel">
         <div class="panel-header">
           <span class="label">Editor</span>
-          <span class="hint">Wrap your code in class Main &amp; main.execute(1)</span>
+          <span class="hint">Class Main + main.execute(1) required</span>
           <div class="header-right">
             <button type="button" onclick="runEazyCode()">
               <span class="btn-icon">▶</span>
@@ -298,7 +298,7 @@
               <span class="status-dot"></span>
               Ready
             </span>
-            <span class="hint-ghost">Only the code inside main(main.execute(1)) is compiled</span>
+            <span class="hint-ghost">Only the code inside main(main.execute(1)) is executable</span>
           </div>
         </div>
       </div>
@@ -367,8 +367,8 @@
       return m ? parseInt(m[0], 10) : 0;
     }
 
-    // Extract only the body of main(main.execute(1))
-    function extractMainBody(source) {
+    // Extract main body + region
+    function extractMainRegion(source) {
       const sig = "public static void main(main.execute(1))";
       const sigIndex = source.indexOf(sig);
       if (sigIndex === -1) {
@@ -387,12 +387,36 @@
         else if (ch === "}") {
           depth--;
           if (depth === 0) {
-            const bodyEnd = i;
-            return source.slice(bodyStart, bodyEnd);
+            const bodyEnd = i; // index of closing }
+            return {
+              body: source.slice(bodyStart, bodyEnd),
+              bodyStart,
+              bodyEnd
+            };
           }
         }
       }
       throw new Error("Could not find matching } for main.execute(1)");
+    }
+
+    // Ensure no executable code outside main
+    function validateOutsideMain(source, mainStart, mainEnd) {
+      const patterns = [
+        { re: /console\.print\s*\(/g, msg: "console.print is only allowed inside main(main.execute(1))" },
+        { re: /\bfor\s*\(/g, msg: "for-loops are only allowed inside main(main.execute(1))" },
+        { re: /\bwhile\s*\(/g, msg: "while-loops are only allowed inside main(main.execute(1))" },
+        { re: /\bif\s*\(/g, msg: "if-statements are only allowed inside main(main.execute(1))" }
+      ];
+
+      for (const { re, msg } of patterns) {
+        let m;
+        while ((m = re.exec(source)) !== null) {
+          const idx = m.index;
+          if (idx < mainStart || idx >= mainEnd) {
+            throw new Error(msg);
+          }
+        }
+      }
     }
 
     function translateExpression(expr) {
@@ -460,7 +484,7 @@
 
         // declarations: int / String / var
         {
-          const m = trimmed.match(/^(int|String|var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
+          const m = trimmed.match(/^(int|String|var|static\s+int|static\s+String|static\s+var)\s+([A-Za-z_]\w*)\s*=\s*(.+);?$/);
           if (m) {
             const name = m[2];
             const expr = translateExpression(m[3]);
@@ -527,9 +551,11 @@
       setStatus("Extracting main...", "normal");
 
       try {
-        const body = extractMainBody(fullSource);
+        const region = extractMainRegion(fullSource);
+        validateOutsideMain(fullSource, region.bodyStart, region.bodyEnd);
+
         setStatus("Compiling...", "normal");
-        const js = compileEazy(body);
+        const js = compileEazy(region.body);
         setStatus("Running...", "normal");
         eval(js);
         setStatus("Done", "success");
@@ -572,7 +598,7 @@
     }
 
     editorEl.addEventListener("keydown", function (e) {
-      // auto-pairs
+      // auto-pairs for (), [], ""
       if (e.key === "(") {
         insertPair(editorEl, "(", ")", e);
         return;
@@ -586,19 +612,17 @@
         return;
       }
 
-      // smart Backspace for (), [], ""
+      // smart Backspace
       if (e.key === "Backspace") {
         const el = editorEl;
         const pos = el.selectionStart;
+        const value = el.value;
+
+        // if between pair (), [], ""
         if (pos > 0 && el.selectionStart === el.selectionEnd) {
-          const value = el.value;
           const before = value[pos - 1];
           const after = value[pos];
-          const pairs = {
-            "(": ")",
-            "[": "]",
-            '"': '"'
-          };
+          const pairs = { "(": ")", "[": "]", '"': '"' };
           if (pairs[before] && pairs[before] === after) {
             e.preventDefault();
             el.value = value.slice(0, pos - 1) + value.slice(pos + 1);
@@ -606,15 +630,26 @@
             return;
           }
         }
+
+        // delete 4-space "tab" at once
+        if (el.selectionStart === el.selectionEnd && pos >= 4) {
+          const chunk = value.slice(pos - 4, pos);
+          if (chunk === "    ") {
+            e.preventDefault();
+            el.value = value.slice(0, pos - 4) + value.slice(pos);
+            el.selectionStart = el.selectionEnd = pos - 4;
+            return;
+          }
+        }
       }
 
-      // Tab inserts spaces
+      // Tab inserts 4 spaces
       if (e.key === "Tab") {
-        insertText(editorEl, "    ", e); // 4 spaces
+        insertText(editorEl, "    ", e);
         return;
       }
 
-      // Enter: keep indent, and special case for lines ending with {
+      // Enter: keep indent, special-case for lines ending with {
       if (e.key === "Enter") {
         const el = editorEl;
         const start = el.selectionStart;
@@ -629,7 +664,6 @@
         const trimmedLine = currentLine.trimEnd();
         const indentUnit = "    ";
 
-        // if line ends with { -> create block
         if (trimmedLine.endsWith("{")) {
           e.preventDefault();
           const newText =
@@ -645,15 +679,12 @@
           const cursorPos =
             before.length + 1 + currentIndent.length + indentUnit.length;
           el.selectionStart = el.selectionEnd = cursorPos;
-          return;
         } else {
-          // normal enter: keep same indent
           e.preventDefault();
           const newText = before + "\n" + currentIndent + after;
           el.value = newText;
           const cursorPos = before.length + 1 + currentIndent.length;
           el.selectionStart = el.selectionEnd = cursorPos;
-          return;
         }
       }
     });
