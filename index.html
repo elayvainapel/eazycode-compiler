@@ -289,20 +289,7 @@
         <div class="panel-body">
           <textarea id="code" spellcheck="false">public class Main {
     public static void main(main.execute(1)) {
-        // eazyCode here
-
-        int a = 4;
-        int b = first.Int("hfdsjkgheu7473qhlhrq784r");
-        int c = sum.Int("fhriafhriafif74t87eatht32ththtp8");
-
-        console.print(a)+.dl();  // 4
-        console.print(b)+.dl();  // 7473
-        console.print(c)+.dl();  // 201
-
-        for (int i:range++(1,5)){
-            console.print("nice ");
-        }
-        console.print()+.dl();
+        console.print("hello world!");
     }
 }</textarea>
 
@@ -335,6 +322,7 @@
   <script>
     const outputEl = document.getElementById("output");
     const statusEl = document.getElementById("status");
+    const editorEl = document.getElementById("code");
 
     const eazyConsole = {
       print(value = "") {
@@ -399,7 +387,7 @@
         else if (ch === "}") {
           depth--;
           if (depth === 0) {
-            const bodyEnd = i; // position of closing brace
+            const bodyEnd = i;
             return source.slice(bodyStart, bodyEnd);
           }
         }
@@ -428,6 +416,12 @@
           out.push("");
           continue;
         }
+
+        if (trimmed === "{" || trimmed === "}") {
+          out.push(trimmed);
+          continue;
+        }
+
         if (trimmed.startsWith("//")) {
           out.push("//" + trimmed.slice(2));
           continue;
@@ -509,7 +503,7 @@
           continue;
         }
 
-        // assignment
+        // assignment: x = expr;
         {
           const m = trimmed.match(/^([A-Za-z_]\w*)\s*=\s*(.+);?$/);
           if (m && !trimmed.startsWith("for ")) {
@@ -520,19 +514,15 @@
           }
         }
 
-        // fallback
-        line = line.replace(/first\.Int/g, "first_Int");
-        line = line.replace(/sum\.Int/g, "sum_Int");
-        line = line.replace(/eachSum\.Int/g, "eachSum_Int");
-        line = line.replace(/eachFirst\.Int/g, "eachFirst_Int");
-        out.push(line);
+        // if we reach here, it's something we don't understand -> error
+        throw new Error("Cannot compile line: " + trimmed);
       }
 
       return out.join("\n");
     }
 
     function runEazyCode() {
-      const fullSource = document.getElementById("code").value;
+      const fullSource = editorEl.value;
       outputEl.textContent = "";
       setStatus("Extracting main...", "normal");
 
@@ -544,10 +534,75 @@
         eval(js);
         setStatus("Done", "success");
       } catch (err) {
-        outputEl.textContent += "\n[Error] " + err.message;
+        outputEl.textContent += "[Error] " + err.message + "\n";
         setStatus("Error", "error");
       }
     }
+
+    // ========= Editor shortcuts: (), [], {} + Enter indent =========
+
+    function insertPair(el, openChar, closeChar, event) {
+      event.preventDefault();
+      const start = el.selectionStart;
+      const end = el.selectionEnd;
+      const value = el.value;
+      const selected = value.slice(start, end);
+      const before = value.slice(0, start);
+      const after = value.slice(end);
+
+      if (selected.length > 0) {
+        el.value = before + openChar + selected + closeChar + after;
+        el.selectionStart = start + 1;
+        el.selectionEnd = start + 1 + selected.length;
+      } else {
+        el.value = before + openChar + closeChar + after;
+        el.selectionStart = el.selectionEnd = start + 1;
+      }
+    }
+
+    editorEl.addEventListener("keydown", function (e) {
+      if (e.key === "(") {
+        insertPair(editorEl, "(", ")", e);
+        return;
+      }
+      if (e.key === "[") {
+        insertPair(editorEl, "[", "]", e);
+        return;
+      }
+
+      if (e.key === "Enter") {
+        const el = editorEl;
+        const start = el.selectionStart;
+        const value = el.value;
+        const before = value.slice(0, start);
+        const after = value.slice(start);
+        const lastNewline = before.lastIndexOf("\n");
+        const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+        const currentLine = before.slice(lineStart);
+        const indentMatch = currentLine.match(/^[\t ]*/);
+        const currentIndent = indentMatch ? indentMatch[0] : "";
+        const trimmedLine = currentLine.trimEnd();
+
+        // if line ends with { -> auto block with indent
+        if (trimmedLine.endsWith("{")) {
+          e.preventDefault();
+          const indentUnit = "    "; // 4 spaces
+          const newText =
+            before +
+            "\n" +
+            currentIndent +
+            indentUnit +
+            "\n" +
+            currentIndent +
+            "}" +
+            after;
+          el.value = newText;
+          const cursorPos =
+            before.length + 1 + currentIndent.length + indentUnit.length;
+          el.selectionStart = el.selectionEnd = cursorPos;
+        }
+      }
+    });
   </script>
 </body>
 </html>
